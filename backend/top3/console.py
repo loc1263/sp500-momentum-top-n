@@ -138,5 +138,5 @@ def print_actual(top_n: int, months: int, min_cap_b: float | None, as_of, window
     print_table(headers, rows)
     print(f"\n→ Ponderación igual: {weight:.1f}% cada una. Se rebalancea cada {months} meses.")
     if alternates:
-        print("\nSuplentes (las que siguen, por si querés cambiar alguna del top):")
+        print("\nSuplentes (puestos siguientes, como reemplazo posible de alguna acción del top):")
         print_table(headers, alternates)

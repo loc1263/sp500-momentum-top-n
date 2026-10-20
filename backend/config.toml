@@ -44,7 +44,7 @@ months = 4
 initial_capital = 15000
 # Cantidad de tickers a comprar en cada rebalanceo (ponderación igual)
 top_n = 4
-# Suplentes que se muestran en el Top actual: las que siguen al top_n, para poder cambiar alguna (0 = ninguno)
+# Suplentes del Top actual: cuántos puestos posteriores al top_n se muestran como reemplazo posible (0 = ninguno)
 alternates = 4
 # Ruedas bursátiles por mes (para convertir meses en ventana de ranking)
 trading_days_per_month = 21

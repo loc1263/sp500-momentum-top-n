@@ -2,7 +2,7 @@
 
 El backtest consulta miles de veces "retorno de estos tickers en las últimas N ruedas hasta tal fecha" y "retorno de
 mantenerlos entre dos fechas". Con pandas (`prices.loc[:fecha, tickers].tail(n)`) cada consulta copia toda la
-historia hasta esa fecha. Acá se calcula una sola vez la matriz de precios, los NaN acumulados (para saber en O(1)
+historia hasta esa fecha. Aquí se calcula una sola vez la matriz de precios, los NaN acumulados (para saber en O(1)
 si una ventana está completa) y, a pedido, los precios con relleno hacia adelante; cada consulta es indexar filas.
 
 Las reglas son las mismas de siempre: una ventana vale solo para los tickers sin ningún hueco (NaN) en ella.

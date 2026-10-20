@@ -76,7 +76,7 @@
 {#if actual.alternates?.length}
   <h2>Suplentes</h2>
   <p class="sub">
-    Las que siguen al top {actual.picks.length}, por si querés cambiar alguna. Con el mismo plazo y criterio de ranking.
+    Puestos siguientes al top {actual.picks.length}, como reemplazo posible de alguna acción del top. Mismo plazo y criterio de ranking.
   </p>
   <div class="wrap">
     <table>

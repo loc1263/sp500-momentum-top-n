@@ -3,7 +3,8 @@
 ## Estructura
 
 ```
-start.ps1      # levanta backend + frontend
+start.ps1      # levanta backend + frontend (Windows)
+start.sh       # ídem para macOS y Linux
 backend/       # Python: backtest, Top actual, base SQLite y API HTTP
 frontend/      # SPA en Svelte 5 + Vite con los resultados del día y del backtest
 docs/          # documentación
@@ -11,7 +12,7 @@ docs/          # documentación
 
 | Archivo | Para qué sirve |
 |---|---|
-| `start.ps1` | Levanta los dos servidores (`.\start.ps1`; Ctrl+C los detiene) |
+| `start.ps1`, `start.sh` | Levantan los dos servidores (`.\start.ps1` en Windows, `./start.sh` en macOS y Linux; Ctrl+C los detiene) |
 | `backend/top3_backtest.py` | Backtest Point-in-Time, comparación de plazos y sensibilidad al calendario de arranque |
 | `backend/top3_actual.py` | Top N de hoy: las acciones del S&P 500 con mejor retorno en el plazo configurado |
 | `backend/top3_etf.py` | Ranking de momentum ajustado por riesgo de los ETFs de Vanguard (sin backtest) |
@@ -52,7 +53,8 @@ docs/          # documentación
 | Archivo | Responsabilidad |
 |---|---|
 | `App.svelte` | Carga de datos (API y luego JSON estático), pestañas, filtros de universo y período, tema |
-| `lib/ActualView.svelte` | Top actual |
+| `lib/ActualView.svelte` | Top actual y suplentes |
+| `lib/Bunny.svelte` | Detalle decorativo: un conejo que pasea por el pie de la pantalla, se aleja del cursor y saluda al hacer clic (se desactiva con «reducir movimiento» del sistema) |
 | `lib/BacktestView.svelte` | Tarjetas, curva de capital, historial de selecciones y calendarios |
 | `lib/SweepView.svelte` | Comparación de plazos y sensibilidad al arranque |
 | `lib/Chart.svelte`, `Range.svelte`, `TickerLink.svelte`, `Glossary.svelte` | Componentes compartidos |

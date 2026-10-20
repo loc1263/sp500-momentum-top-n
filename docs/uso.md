@@ -5,8 +5,10 @@ Los comandos de Python se corren desde `backend/` (las rutas del config son rela
 ## Levantar todo
 
 ```
-.\start.ps1                                   # backend en :8000, frontend en http://localhost:5173
+.\start.ps1                                   # Windows: backend en :8000, frontend en http://localhost:5173
 .\start.ps1 -BackendPort 9000 -FrontendPort 3000
+./start.sh                                    # macOS / Linux
+BACKEND_PORT=9000 FRONTEND_PORT=3000 ./start.sh
 ```
 
 El frontend pide `/api/report` al backend (en desarrollo Vite lo redirige) y, si el backend no está, usa
@@ -76,6 +78,10 @@ se filtra el universo). El último dato de la ventana es el precio más reciente
 rueda puede ser intradía.
 
 Además del Top, muestra:
+
+- **Suplentes:** los `[backtest] alternates` puestos siguientes al `top_n` (4 por defecto), con el mismo criterio
+  de ranking, para evaluar el reemplazo de alguna acción del top. No tienen peso asignado y no afectan el backtest
+  ni la comparación con la corrida anterior. Se guardan en la tabla `actual_alternates`.
 
 - **Cambios vs. la corrida anterior:** qué tickers entran, salen y se mantienen respecto de la última selección
   guardada en `actual_picks` (mismo plazo y universo).

@@ -20,6 +20,7 @@
 | | `months` | `4` | Plazo del backtest normal: ranking de N meses y rebalanceo cada N meses |
 | | `initial_capital` | `1000` | Capital inicial (US$) |
 | | `top_n` | `4` | Cantidad de acciones por rebalanceo |
+| | `alternates` | `4` | Suplentes del Top actual: puestos posteriores al `top_n` que se muestran como reemplazo posible (`0` = ninguno) |
 | | `trading_days_per_month` | `21` | Ruedas por mes para convertir meses en ventana de ranking |
 | `[tickers.aliases]` | `VIEJO = "NUEVO"` | 6 renombres | Unifica símbolos renombrados |
 | `[universe]` | `min_cap_billions` | `10` | Umbral de `--large-cap` (miles de millones de US$) |
