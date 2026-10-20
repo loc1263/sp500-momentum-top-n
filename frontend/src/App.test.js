@@ -55,6 +55,26 @@ describe('App', () => {
     await waitFor(() => expect(location.hash).toBe('#sweep'));
   });
 
+  it('muestra el ranking de ETFs y oculta los filtros que no aplican', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => json(report)));
+    render(App);
+    await screen.findByText('NVDA');
+    await fireEvent.click(screen.getByRole('tab', { name: 'ETFs Vanguard' }));
+    expect(await screen.findByText('Ranking global de ETFs de Vanguard')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'VONV' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Universo')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Período')).not.toBeInTheDocument();
+    expect(screen.queryByText('¿Cómo leer esta página?')).not.toBeInTheDocument();
+    await waitFor(() => expect(location.hash).toBe('#etf'));
+  });
+
+  it('avisa si todavía no hay ranking de ETFs', async () => {
+    location.hash = '#etf';
+    vi.stubGlobal('fetch', vi.fn(async () => json({ ...report, etf: null })));
+    render(App);
+    expect(await screen.findByText(/Sin ranking de ETFs/)).toBeInTheDocument();
+  });
+
   it('abre la pestaña indicada en el hash', async () => {
     location.hash = '#backtest';
     vi.stubGlobal('fetch', vi.fn(async () => json(report)));

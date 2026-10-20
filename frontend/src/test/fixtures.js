@@ -58,6 +58,18 @@ export const report = {
       ],
     },
   ],
+  etf: {
+    as_of: '2026-10-19', run_at: '2026-10-19T10:00:00', top_n: 2, horizons: [3, 12], risk_free: 'VUSB',
+    previous_as_of: '2026-10-16', changes: { entered: ['AMD'], exited: ['VTV'], kept: ['VONV'] },
+    rows: [
+      { rank: 1, ticker: 'VONV', name: 'Russell 1000 Value', category: 'Acciones EE. UU. estilo', score: 1.67,
+        vol: 0.111, max_dd: -0.068, sma_dist: 0.096, returns: { 3: 0.045, 12: 0.291 } },
+      { rank: 2, ticker: 'VDE', name: 'Energy', category: 'Sectores', score: 1.66, vol: 0.219, max_dd: -0.15,
+        sma_dist: 0.171, returns: { 3: 0.136, 12: 0.601 } },
+      { rank: 3, ticker: 'BND', name: 'Total Bond Market', category: 'Bonos EE. UU.', score: -0.4, vol: 0.05,
+        max_dd: -0.04, sma_dist: -0.01, returns: { 3: -0.01, 12: 0.02 } },
+    ],
+  },
   backtest: [
     { min_cap_billions: 0, label: 'Todo el índice', periods: [period(3), period(5)] },
   ],

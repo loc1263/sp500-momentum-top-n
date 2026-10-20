@@ -13,6 +13,10 @@ describe('TickerLink', () => {
     render(TickerLink, { ticker: 'BRK-B' });
     expect(screen.getByRole('link')).toHaveAttribute('href', 'https://stockanalysis.com/stocks/brk.b/');
   });
+  it('los ETFs van a la sección /etf/', () => {
+    render(TickerLink, { ticker: 'VTI', kind: 'etf' });
+    expect(screen.getByRole('link')).toHaveAttribute('href', 'https://stockanalysis.com/etf/vti/');
+  });
   it('abre en pestaña nueva de forma segura', () => {
     render(TickerLink, { ticker: 'AAPL' });
     const a = screen.getByRole('link');

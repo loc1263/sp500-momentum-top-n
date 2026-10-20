@@ -2,12 +2,14 @@
   import ActualView from './lib/ActualView.svelte';
   import BacktestView from './lib/BacktestView.svelte';
   import SweepView from './lib/SweepView.svelte';
+  import EtfView from './lib/EtfView.svelte';
   import Glossary from './lib/Glossary.svelte';
 
   const tabs = [
     { id: 'actual', label: 'Top actual' },
     { id: 'backtest', label: 'Backtest' },
     { id: 'sweep', label: 'Plazos y sensibilidad' },
+    { id: 'etf', label: 'ETFs Vanguard' },
   ];
 
   const initialTab = () => (tabs.some((t) => t.id === location.hash.slice(1)) ? location.hash.slice(1) : 'actual');
@@ -95,7 +97,7 @@
         {/each}
       </div>
       <div class="filters">
-        {#if tab !== 'actual' && periods.length}
+        {#if tab !== 'actual' && tab !== 'etf' && periods.length}
           <label>
             Período
             <select value={period?.years} onchange={(e) => (chosenYears = Number(e.currentTarget.value))}>
@@ -107,20 +109,28 @@
             </select>
           </label>
         {/if}
-        <label>
-          Universo
-          <select bind:value={capKey}>
-            {#each universes as u (key(u))}
-              <option value={key(u)}>{u.label}</option>
-            {/each}
-          </select>
-        </label>
+        {#if tab !== 'etf'}
+          <label>
+            Universo
+            <select bind:value={capKey}>
+              {#each universes as u (key(u))}
+                <option value={key(u)}>{u.label}</option>
+              {/each}
+            </select>
+          </label>
+        {/if}
       </div>
     </nav>
 
-    {#if tab !== 'actual'}<Glossary />{/if}
+    {#if tab === 'backtest' || tab === 'sweep'}<Glossary />{/if}
 
-    {#if tab === 'actual'}
+    {#if tab === 'etf'}
+      {#if report.etf}
+        <EtfView etf={report.etf} />
+      {:else}
+        <p class="muted">Sin ranking de ETFs. Corré top3_etf.py.</p>
+      {/if}
+    {:else if tab === 'actual'}
       {#if actual}
         <ActualView {actual} />
       {:else}

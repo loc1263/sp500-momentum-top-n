@@ -1,8 +1,8 @@
 <script>
-  let { ticker } = $props();
+  let { ticker, kind = 'stocks' } = $props(); // kind: 'stocks' o 'etf' (stockanalysis.com los separa)
 
   // Yahoo usa BRK-B; stockanalysis.com usa brk.b
-  const href = $derived(`https://stockanalysis.com/stocks/${encodeURIComponent(ticker.toLowerCase().replace('-', '.'))}/`);
+  const href = $derived(`https://stockanalysis.com/${kind}/${encodeURIComponent(ticker.toLowerCase().replace('-', '.'))}/`);
 </script>
 
 <a {href} target="_blank" rel="noopener noreferrer" title="Ver {ticker} en stockanalysis.com"><strong>{ticker}</strong></a>
