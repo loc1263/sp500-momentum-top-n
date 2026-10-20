@@ -1,7 +1,7 @@
 """Acciones en circulación y capitalización aproximada (precio de la fecha x acciones actuales)."""
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
-from datetime import date
+from datetime import date, timedelta
 
 import pandas as pd
 import yfinance as yf
@@ -21,11 +21,13 @@ def _fetch_shares(ticker: str) -> tuple[str, float | None]:
 
 def ensure_shares(conn: sqlite3.Connection, tickers: list[str], use_cache: bool, settings: DataSettings,
                   known: dict[str, float] | None = None) -> dict[str, float]:
-    """Acciones en circulación (actuales) de `tickers`; se reutilizan las descargadas hoy salvo --no-cache.
-    `known` son datos ya obtenidos en esta corrida (no se vuelven a pedir)."""
+    """Acciones en circulación (actuales) de `tickers`. Las guardadas hace menos de `shares_ttl_days` días se
+    reutilizan (cambian por trimestre, no a diario); con --no-cache se vuelven a pedir.
+    `known` son datos ya obtenidos en esta corrida (no se vuelven a pedir, tampoco con --no-cache)."""
     today = date.today().isoformat()
+    cutoff = (date.today() - timedelta(days=settings.shares_ttl_days)).isoformat()
     known = known or {}
-    cached = {r[0]: r[1] for r in conn.execute("SELECT ticker, shares FROM shares WHERE fetched = ?", (today,))}
+    cached = {r[0]: r[1] for r in conn.execute("SELECT ticker, shares FROM shares WHERE fetched >= ?", (cutoff,))}
     shares = {t: known[t] if t in known else cached[t]
               for t in tickers if t in known or (use_cache and t in cached)}
     todo = [t for t in tickers if t not in shares]

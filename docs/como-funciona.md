@@ -18,7 +18,10 @@
    y se informa el calendario base (primer mes), la mediana y el rango, para medir cuánto del resultado
    depende de la fecha de arranque.
 6. **Caché.** Todo se guarda en SQLite. Si se vuelve a correr el mismo día se reutiliza lo descargado;
-   `--no-cache` fuerza una descarga nueva.
+   `--no-cache` fuerza una descarga nueva, pero no repite dentro de la misma corrida lo que ya bajó (p. ej. las acciones
+   en circulación), y `run_pipeline.py` lo aplica solo al primer paso que descarga: los siguientes leen de SQLite lo que
+   ese paso acaba de guardar. Las acciones en circulación cambian por trimestre, así que se reutilizan hasta
+   `[data] shares_ttl_days` días (30 por defecto) aunque sean de otro día.
    Si es otro día, los precios se actualizan de forma incremental: solo se baja lo que falta desde la última
    descarga (tickers nuevos completos; un ticker que pagó dividendo o hizo split desde entonces se vuelve a bajar
    entero, porque su precio ajustado cambió). Una descarga completa solo ocurre con `--no-cache`, sin datos

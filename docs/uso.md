@@ -19,7 +19,7 @@ El frontend pide `/api/report` al backend (en desarrollo Vite lo redirige) y, si
 cd backend
 python run_pipeline.py                  # todo: actualiza datos, backtest, Top actual y JSON del frontend
 python run_pipeline.py --tests          # corre antes los tests
-python run_pipeline.py --no-cache       # descarga todo de nuevo
+python run_pipeline.py --no-cache       # descarga todo de nuevo (solo el primer paso que descarga; los demás leen lo que acaba de guardar)
 python run_pipeline.py --years 7        # backtest de un único período
 python run_pipeline.py --skip-backtest  # solo Top actual + JSON (rápido)
 ```

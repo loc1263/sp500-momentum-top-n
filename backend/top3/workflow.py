@@ -15,8 +15,10 @@ from .universe import Universe
 class UniverseBuilder:
     """Crea el Universe de cada umbral de capitalización reutilizando las acciones en circulación ya bajadas."""
 
-    def __init__(self, conn: sqlite3.Connection, prices: pd.DataFrame, use_cache: bool, settings: DataSettings):
+    def __init__(self, conn: sqlite3.Connection, prices: pd.DataFrame, use_cache: bool, settings: DataSettings,
+                 known_shares: dict[str, float] | None = None):
         self.conn, self.prices, self.use_cache, self.settings = conn, prices, use_cache, settings
+        self.known_shares = known_shares if known_shares is not None else {}  # se comparte con los Context
         self._shares: dict[str, float] | None = None
 
     def __call__(self, min_cap_billions: float | None) -> Universe | None:
@@ -24,7 +26,9 @@ class UniverseBuilder:
         if not min_cap_billions:
             return None
         if self._shares is None:
-            self._shares = ensure_shares(self.conn, list(self.prices.columns), self.use_cache, self.settings)
+            self._shares = ensure_shares(self.conn, list(self.prices.columns), self.use_cache, self.settings,
+                                         known=self.known_shares)
+            self.known_shares.update(self._shares)
         log.info("Universo: %s (cap. aprox. >= US$ %g B)", universes.label(min_cap_billions), min_cap_billions)
         return Universe(self._shares, min_cap_billions)
 

@@ -2,7 +2,7 @@
 import json
 import sqlite3
 import statistics
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 import pandas as pd
@@ -29,6 +29,7 @@ class Context:
     end_date: pd.Timestamp
     use_cache: bool = True
     file_suffix: str = ""   # se agrega al nombre de los reportes HTML (p. ej. "_5y")
+    known_shares: dict[str, float] = field(default_factory=dict)  # acciones ya bajadas en esta corrida
 
     @property
     def initial_capital(self) -> float:
@@ -143,5 +144,7 @@ def attach_market_caps(ctx: Context, terms: list[Term], universe: Universe | Non
     if not histories:
         return
     picked = sorted({t for history in histories for h in history for t in h["returns"]})
-    shares = ensure_shares(ctx.conn, picked, ctx.use_cache, ctx.settings, known=universe.shares if universe else None)
+    known = {**(universe.shares if universe else {}), **ctx.known_shares}
+    shares = ensure_shares(ctx.conn, picked, ctx.use_cache, ctx.settings, known=known)
+    ctx.known_shares.update(shares)  # el período siguiente no vuelve a pedir lo mismo, tampoco con --no-cache
     add_market_caps(histories, ctx.prices, shares)

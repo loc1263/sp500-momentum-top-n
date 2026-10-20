@@ -98,14 +98,16 @@ def run(args: argparse.Namespace, cfg: dict) -> list[Path]:
         prices = load_prices(conn)
 
         levels = resolve_levels(args, cfg)
-        build_universe = UniverseBuilder(conn, prices, use_cache, settings)
+        known_shares: dict[str, float] = {}  # acciones en circulación ya bajadas: se reutilizan en toda la corrida
+        build_universe = UniverseBuilder(conn, prices, use_cache, settings, known_shares)
         months = args.months or int(bt_cfg["months"])
 
         reports: list[Path] = []
         for years, start_date in periods:
             # Cada período lleva su propio config (años) y sufijo de los HTML (_5y, _10y...)
             ctx = Context(conn, {**cfg, "backtest": {**bt_cfg, "backtest_years": years}}, settings, constituents,
-                          prices, start_date, end_date, use_cache, file_suffix=f"_{years:g}y")
+                          prices, start_date, end_date, use_cache, file_suffix=f"_{years:g}y",
+                          known_shares=known_shares)
             log.info("########## Período: %g años (%s a %s) ##########", years, start_date.date(), end_date.date())
             for level in levels:
                 universe = build_universe(level)

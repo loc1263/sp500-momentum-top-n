@@ -19,6 +19,7 @@ DEFAULT_CONFIG: dict[str, dict] = {
         "stale_days": 30,
         "price_drift_tolerance": 0.0001,
         "runs_keep_days": 7,
+        "shares_ttl_days": 30,
     },
     "backtest": {
         "start_date": "",
@@ -100,6 +101,7 @@ class DataSettings:
     price_overlap_days: int
     stale_days: int
     price_drift_tolerance: float
+    shares_ttl_days: int = 30
 
     @classmethod
     def from_config(cls, cfg: dict) -> "DataSettings":
@@ -116,4 +118,5 @@ class DataSettings:
             price_overlap_days=int(d["price_overlap_days"]),
             stale_days=int(d["stale_days"]),
             price_drift_tolerance=float(d["price_drift_tolerance"]),
+            shares_ttl_days=int(d["shares_ttl_days"]),
         )

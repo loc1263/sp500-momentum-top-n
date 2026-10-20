@@ -82,3 +82,17 @@ def test_run_calendars_alone_also_reports_once(conn, cfg, settings, caplog):
                   pd.Timestamp("2023-06-01"), pd.Timestamp("2024-12-31"))
     run_calendars(ctx, 3)
     assert len([r for r in caplog.records if "TOP-BKT-003" in r.getMessage()]) == 1
+
+
+def test_market_caps_reuse_shares_downloaded_earlier_in_the_run_even_without_cache(ctx, monkeypatch):
+    from top3 import shares as shares_module
+    from top3.analysis import attach_market_caps
+    calls = []
+    monkeypatch.setattr(shares_module, "_fetch_shares", lambda t: (calls.append(t), (t, 1e6))[1])
+    ctx.use_cache = False
+    term = run_calendars(ctx, 3)
+    attach_market_caps(ctx, [term])
+    first = sorted(calls)
+    assert first and set(first) == set(ctx.known_shares)
+    attach_market_caps(ctx, [term])               # el período siguiente: nada nuevo que pedir
+    assert sorted(calls) == first

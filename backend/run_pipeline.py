@@ -32,7 +32,14 @@ def universe_args(level):
 
 def build_steps(cfg, args):
     py, config = sys.executable, ["--config", args.config]
-    cache = ["--no-cache"] if args.no_cache else []
+    pending = ["--no-cache"] if args.no_cache else []
+
+    def cache():
+        """--no-cache solo para el primer paso que descarga: los siguientes reutilizan lo que ese paso acaba de
+        guardar en SQLite en vez de volver a bajar lo mismo (los Top actual repetían 3 veces las descargas)."""
+        flags = list(pending)
+        pending.clear()
+        return flags
     levels = [float(x) for x in cfg["universe"]["sweep_min_cap_billions"]]
     steps = []
     if args.tests:
@@ -40,11 +47,11 @@ def build_steps(cfg, args):
     if not args.skip_backtest:
         years = ["--years", f"{args.years:g}"] if args.years else []
         steps.append(("Backtest: períodos x plazos x universos (sweep + offsets)",
-                      [py, "top3_backtest.py", "--sweep", *config, *cache, *years]))
+                      [py, "top3_backtest.py", "--sweep", *config, *cache(), *years]))
     if not args.skip_actual:
         for level in levels:
             name = f"Top actual - {'índice completo' if not level else f'cap. >= US$ {level:g} B'}"
-            steps.append((name, [py, "top3_actual.py", *config, *cache, *universe_args(level)]))
+            steps.append((name, [py, "top3_actual.py", *config, *cache(), *universe_args(level)]))
     if not args.skip_etf:
         steps.append(("Ranking de ETFs de Vanguard", [py, "top3_etf.py", *config]))
     steps.append(("Exportar JSON del frontend", [py, "export_frontend.py", *config]))

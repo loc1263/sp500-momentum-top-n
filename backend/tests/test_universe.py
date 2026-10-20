@@ -30,3 +30,16 @@ def test_select_ignores_missing_prices_and_unknown_shares():
     u = Universe({"A": 1e12, "E": 1e12}, min_cap_billions=1)
     last = pd.Series({"A": 1.0, "D": 1.0, "E": float("nan")})
     assert u.select(["A", "D", "E"], last) == ["A"]
+
+
+def test_universe_builder_shares_what_it_downloads_with_the_run(conn, settings, monkeypatch):
+    from top3 import workflow
+    calls = []
+    monkeypatch.setattr(workflow, "ensure_shares",
+                        lambda c, tickers, use_cache, s, known=None: (calls.append(dict(known)), {t: 1e9 for t in tickers})[1])
+    known = {}
+    builder = workflow.UniverseBuilder(conn, pd.DataFrame(columns=["A", "B"]), False, settings, known)
+    assert builder(10).shares == {"A": 1e9, "B": 1e9}
+    assert known == {"A": 1e9, "B": 1e9} and calls == [{}]
+    assert builder(200).min_cap_billions == 200 and len(calls) == 1      # no vuelve a pedir
+    assert builder(0) is None

@@ -60,3 +60,20 @@ def test_pipeline_steps(cfg):
     Args.skip_backtest = Args.skip_actual = Args.skip_etf = True
     Args.tests = False
     assert [n for n, _ in run_pipeline.build_steps(cfg, Args)] == ["Exportar JSON del frontend"]
+
+
+def test_pipeline_passes_no_cache_only_to_the_first_downloading_step(cfg):
+    class Args:
+        config, no_cache, years, tests, skip_backtest, skip_actual, skip_etf = (
+            "config.toml", True, None, False, False, False, True)
+
+    steps = run_pipeline.build_steps(cfg, Args)
+    flags = {name: "--no-cache" in cmd for name, cmd in steps}
+    assert [n for n, f in flags.items() if f] == [steps[0][0]]            # solo el backtest
+
+    Args.skip_backtest = True                                             # sin backtest, el primer Top actual
+    flags = {name: "--no-cache" in cmd for name, cmd in run_pipeline.build_steps(cfg, Args)}
+    assert [n for n, f in flags.items() if f] == ["Top actual - índice completo"]
+
+    Args.no_cache = False
+    assert not any("--no-cache" in cmd for _, cmd in run_pipeline.build_steps(cfg, Args))
