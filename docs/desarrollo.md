@@ -32,7 +32,8 @@ docs/          # documentación
 | `config.py` | Valores por defecto, lectura de `config.toml` y `DataSettings` (parámetros de descarga) |
 | `db.py`, `logs.py` | Esquema y conexión SQLite; logging |
 | `constituents.py` | Composición Point-in-Time (CSV histórico + Wikipedia) |
-| `prices.py`, `shares.py` | Precios (descarga completa e incremental) y acciones en circulación |
+| `prices.py`, `shares.py` | Precios (descarga completa e incremental, con reintento ante rate limit) y acciones en circulación |
+| `yahoo.py` | Clasifica los errores que yfinance escribe en su logger y captura los tickers rechazados para reintentarlos |
 | `universe.py` | Universos por capitalización: filtro y etiquetas |
 | `engine.py` | Motor del backtest (`run_backtest`) |
 | `analysis.py` | Calendarios de arranque, resumen por plazo y guardado de corridas |

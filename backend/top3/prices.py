@@ -1,26 +1,61 @@
 """Precios ajustados: descarga completa e incremental a SQLite y carga como matriz fecha x ticker."""
 import sqlite3
+import time
 from datetime import date
 
 import pandas as pd
 import yfinance as yf
 
+from . import errors as E, yahoo
 from .config import DataSettings
 from .db import fetched_today, get_meta, set_meta
 from .logs import log
 
 PRICE_COLUMNS = ["ticker", "date", "close"]
+RATE_LIMIT_RETRIES = 3   # reintentos de los tickers que Yahoo rechazó por rate limit
+RATE_LIMIT_WAIT = 10.0   # segundos antes del primer reintento (se duplica en cada uno)
 
 
-def fetch_prices(tickers: list[str], start: str, end: str, batch_size: int) -> tuple[pd.DataFrame, list[str]]:
+def _download(batch: list[str], start: str, end: str) -> pd.DataFrame:
+    """Precios de cierre ajustados de `batch` (fecha x ticker)."""
+    data = yf.download(batch, start=start, end=end, auto_adjust=True,
+                       progress=False, threads=True)["Close"].copy()  # yfinance lo arma columna a columna: se desfragmenta
+    if isinstance(data, pd.Series):
+        data = data.to_frame(name=batch[0])
+    return data
+
+
+def _download_batch(batch: list[str], start: str, end: str, retries: int, wait: float) -> pd.DataFrame:
+    """Descarga un lote; los tickers que Yahoo rechazó por rate limit se piden de nuevo tras esperar
+    (`wait` segundos, el doble en cada reintento). Si siguen rechazados quedan sin datos y se avisa como error."""
+    with yahoo.capture_errors() as errors:
+        data = _download(batch, start, end)
+    for attempt in range(1, retries + 1):
+        limited = [t for t, message in errors.items() if yahoo.is_rate_limit(message)]
+        if not limited:
+            return data
+        delay = wait * 2 ** (attempt - 1)
+        log.warning(E.NET_RATE_RETRY.msg("Yahoo limitó %d tickers (%s); reintento %d/%d en %g s"),
+                    len(limited), ", ".join(limited[:8]) + (" ..." if len(limited) > 8 else ""), attempt, retries,
+                    delay)
+        time.sleep(delay)
+        with yahoo.capture_errors() as errors:
+            again = _download(limited, start, end)
+        data = pd.concat([data.drop(columns=limited, errors="ignore"), again], axis=1)
+    limited = [t for t, message in errors.items() if yahoo.is_rate_limit(message)]
+    if limited:
+        log.error(E.NET_RATE_LIMIT.msg("Yahoo siguió limitando %d tickers tras %d reintentos; quedan sin datos: %s"),
+                  len(limited), retries, ", ".join(limited))
+    return data
+
+
+def fetch_prices(tickers: list[str], start: str, end: str, batch_size: int, retries: int = RATE_LIMIT_RETRIES,
+                 wait: float = RATE_LIMIT_WAIT) -> tuple[pd.DataFrame, list[str]]:
     """Baja precios ajustados en lotes. Devuelve (DataFrame largo ticker/date/close, tickers sin datos)."""
     frames, sin_datos = [], []
     for i in range(0, len(tickers), batch_size):
         batch = tickers[i:i + batch_size]
-        data = yf.download(batch, start=start, end=end, auto_adjust=True,
-                           progress=False, threads=True)["Close"].copy()  # yfinance lo arma columna a columna: se desfragmenta
-        if isinstance(data, pd.Series):
-            data = data.to_frame(name=batch[0])
+        data = _download_batch(batch, start, end, retries, wait)
         got = set(data.columns[data.notna().any()])
         sin_datos.extend(t for t in batch if t not in got)
         long = (data.rename_axis("date").reset_index()

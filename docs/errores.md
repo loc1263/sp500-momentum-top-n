@@ -32,6 +32,9 @@ Para buscar en el log: `grep TOP-BKT backend/log/top3_backtest.log`.
 | `TOP-NET-002` | Aviso | Se usa la composición guardada en SQLite | Los datos pueden estar desactualizados; vuelve a correr cuando haya conexión. |
 | `TOP-NET-003` | Error | Falló la descarga de la lista actual del S&P 500 | Se usa la guardada en SQLite (puede ser vieja). Revisa la conexión. |
 | `TOP-NET-004` | Error | No se encontró la tabla de cambios en Wikipedia | Es probable que Wikipedia cambiara el formato de la página; hay que ajustar el lector. |
+| `TOP-NET-005` | Error | Yahoo limitó las solicitudes (rate limit) y quedaron tickers sin datos | Ya se reintentó con espera. Vuelve a correr más tarde; los tickers afectados no entran en el ranking. |
+| `TOP-NET-006` | Aviso | Yahoo limitó las solicitudes; se reintenta tras una espera | No requiere acción: si el reintento funciona no se pierde nada. |
+| `TOP-NET-007` | Aviso | yfinance informó un error al descargar precios | Revisa el mensaje original; los tickers afectados pueden quedar sin datos. |
 | `TOP-DAT-001` | Aviso | Filas con fecha no interpretable en la tabla de cambios | Se ignoran. Si son muchas, el formato de la fuente cambió. |
 | `TOP-DAT-002` | Aviso | Sin composición histórica para esa fecha | Esa fecha queda sin constituyentes; revisa history_years y el CSV histórico. |
 | `TOP-DAT-003` | Aviso | Sin dato de acciones en circulación para algunos tickers | Su capitalización queda en n/d y no entran en un universo filtrado por capitalización. |

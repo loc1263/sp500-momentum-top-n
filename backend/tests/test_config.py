@@ -203,3 +203,27 @@ def test_summary_goes_to_the_pipeline_file_when_requested(tmp_path, capsys, monk
     (item,) = logs.merge_summaries(f)
     assert item["code"] == "TOP-DAT-003" and item["steps"] == ["Paso A", "Paso B"]
     assert logs.merge_summaries(tmp_path / "no_existe.jsonl") == []
+
+
+def test_yfinance_errors_are_triaged_into_the_log(tmp_path, capsys, monkeypatch):
+    import logging
+    monkeypatch.delenv("TOP3_SUMMARY_FILE", raising=False)
+    logs = _fresh_logging(tmp_path)
+    yf_log = logging.getLogger("yfinance")
+    try:
+        def main():
+            yf_log.error("$ADM: YFRateLimitError('Too Many Requests')")             # por ticker: DEBUG
+            yf_log.error("\n1 Failed download:")                                    # encabezado: DEBUG
+            yf_log.error("['ADM']: YFRateLimitError('Too Many Requests. Rate limited.')")  # la que cuenta
+            yf_log.error("['ATVI', 'CELG']: possibly delisted; no timezone found")  # esperable: DEBUG
+            yf_log.error("['XYZ']: algo raro")                                      # otro error: aviso
+        logs.run_cli(main)
+        for h in logs.log.handlers:
+            h.flush()
+        text = (tmp_path / "s.log").read_text(encoding="utf-8") if (tmp_path / "s.log").exists() else ""
+    finally:
+        _close_logging()
+    err = capsys.readouterr().err
+    assert "[ERROR] TOP-NET-005: ['ADM']" in err and "[WARNING] TOP-NET-007: ['XYZ']" in err
+    assert "delisted" not in err and "Failed download" not in err        # no ensucian la consola
+    assert "RESUMEN DE AVISOS Y ERRORES: 1 errores, 1 avisos" in err     # y no se cuentan de más

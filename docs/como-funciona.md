@@ -8,7 +8,9 @@
 2. **Alias de tickers.** Las tablas usan símbolos distintos tras un renombre (por ejemplo `BK` y `BNY`);
    `[tickers.aliases]` los unifica con el símbolo vigente en Yahoo.
 3. **Precios.** Se bajan con `yfinance` (precios ajustados) para todos los tickers que estuvieron en el índice
-   durante el histórico, en lotes de 100.
+   durante el histórico, en lotes de 100. Si Yahoo rechaza tickers por rate limit, se reintentan hasta 3 veces
+   esperando 10, 20 y 40 s (`TOP-NET-006`); si siguen rechazados quedan sin datos y se informa como error
+   (`TOP-NET-005`). Los tickers dados de baja (esperables) solo quedan en el log a nivel DEBUG.
 4. **Backtest.** En cada fecha de rebalanceo se rankean las acciones del índice vigentes ese día por retorno
    de los últimos N meses (N x 21 ruedas), se eligen las `top_n` y se mantienen N meses. El retorno del
    período es el promedio simple de las acciones elegidas.

@@ -46,6 +46,12 @@ NET_CURRENT_LIST = _code("TOP-NET-003", "error", "Falló la descarga de la lista
                          "Se usa la guardada en SQLite (puede ser vieja). Revisa la conexión.")
 NET_WIKI_FORMAT = _code("TOP-NET-004", "error", "No se encontró la tabla de cambios en Wikipedia",
                         "Es probable que Wikipedia cambiara el formato de la página; hay que ajustar el lector.")
+NET_RATE_LIMIT = _code("TOP-NET-005", "error", "Yahoo limitó las solicitudes (rate limit) y quedaron tickers sin datos",
+                       "Ya se reintentó con espera. Vuelve a correr más tarde; los tickers afectados no entran en el ranking.")
+NET_RATE_RETRY = _code("TOP-NET-006", "warning", "Yahoo limitó las solicitudes; se reintenta tras una espera",
+                       "No requiere acción: si el reintento funciona no se pierde nada.")
+NET_YAHOO = _code("TOP-NET-007", "warning", "yfinance informó un error al descargar precios",
+                  "Revisa el mensaje original; los tickers afectados pueden quedar sin datos.")
 
 # Datos
 DAT_BAD_DATES = _code("TOP-DAT-001", "warning", "Filas con fecha no interpretable en la tabla de cambios",

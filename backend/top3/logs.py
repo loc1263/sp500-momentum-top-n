@@ -7,6 +7,7 @@ import sys
 import traceback
 from pathlib import Path
 
+from . import yahoo
 from .errors import CATALOG, CFG_MISSING, SYS_PYTHON_WARNING
 
 log = logging.getLogger("top3")
@@ -178,6 +179,14 @@ def setup_logging(logfile: str, log_dir: str) -> None:
     warnings_log.addHandler(file_handler)
     warnings_log.addHandler(console_handler)
     warnings_log.addHandler(_summary)
+    # yfinance escribe sus errores por su propio logger: se ordenan (ver yahoo.triage) y quedan en el log y el resumen
+    yf_log = logging.getLogger("yfinance")
+    yf_log.propagate = False
+    yf_log.handlers.clear()
+    yf_log.filters.clear()
+    yf_log.addFilter(yahoo.triage)
+    for handler in (file_handler, console_handler, _summary):
+        yf_log.addHandler(handler)
 
 
 def log_config(cfg: dict, path: str | Path) -> None:

@@ -125,3 +125,55 @@ def test_same_day_uses_cache(conn, fetch, settings):
     seed(conn, [("A", "2024-03-04", 11.0)], fetched=date.today().isoformat())
     ensure_prices(conn, ["A"], "2024-01-02", "2024-03-06", True, settings)
     assert fetch.calls == []
+
+
+def _yahoo_download(responses, monkeypatch):
+    """Simula yf.download: cada respuesta es (DataFrame, {ticker: mensaje que yfinance logueó})."""
+    import logging
+    calls = []
+
+    def fake(batch, **kwargs):
+        frame, errors = responses[len(calls)]
+        calls.append(list(batch))
+        for ticker, message in errors.items():
+            logging.getLogger("yfinance").error(f"${ticker}: {message}")
+        return {"Close": frame}
+
+    monkeypatch.setattr(prices_module.yf, "download", fake)
+    return calls
+
+
+def _frame(**series):
+    return pd.DataFrame(series, index=pd.to_datetime(["2024-01-02", "2024-01-03"]))
+
+
+def test_rate_limited_tickers_are_retried_after_waiting(monkeypatch):
+    waits = []
+    monkeypatch.setattr(prices_module.time, "sleep", waits.append)
+    calls = _yahoo_download([
+        (_frame(AAA=[1.0, 2.0], ADM=[float("nan")] * 2), {"ADM": "YFRateLimitError('Too Many Requests')"}),
+        (_frame(ADM=[5.0, 6.0]), {}),
+    ], monkeypatch)
+    long, sin_datos = prices_module.fetch_prices(["AAA", "ADM"], "2024-01-01", "2024-02-01", 100, retries=3, wait=10)
+    assert calls == [["AAA", "ADM"], ["ADM"]] and waits == [10]
+    assert sin_datos == [] and sorted(long["ticker"].unique()) == ["AAA", "ADM"]
+
+
+def test_rate_limit_that_never_clears_is_reported_and_left_without_data(monkeypatch, caplog):
+    waits = []
+    monkeypatch.setattr(prices_module.time, "sleep", waits.append)
+    limited = (_frame(AAA=[1.0, 2.0], ADM=[float("nan")] * 2), {"ADM": "Rate limited. Try after a while."})
+    again = (_frame(ADM=[float("nan")] * 2), {"ADM": "Rate limited. Try after a while."})
+    calls = _yahoo_download([limited, again, again], monkeypatch)
+    _, sin_datos = prices_module.fetch_prices(["AAA", "ADM"], "2024-01-01", "2024-02-01", 100, retries=2, wait=5)
+    assert len(calls) == 3 and waits == [5, 10]  # espera el doble en cada reintento
+    assert sin_datos == ["ADM"]
+    assert "TOP-NET-005: Yahoo siguió limitando 1 tickers tras 2 reintentos" in caplog.text
+
+
+def test_delisted_tickers_are_not_retried(monkeypatch):
+    monkeypatch.setattr(prices_module.time, "sleep", lambda s: pytest.fail("no debe esperar"))
+    calls = _yahoo_download([
+        (_frame(AAA=[1.0, 2.0], OLD=[float("nan")] * 2), {"OLD": "possibly delisted; no timezone found"})], monkeypatch)
+    _, sin_datos = prices_module.fetch_prices(["AAA", "OLD"], "2024-01-01", "2024-02-01", 100)
+    assert len(calls) == 1 and sin_datos == ["OLD"]
