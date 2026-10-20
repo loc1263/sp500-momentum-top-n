@@ -16,6 +16,7 @@ docs/          # documentación
 | `backend/top3_actual.py` | Top N de hoy: las acciones del S&P 500 con mejor retorno en el plazo configurado |
 | `backend/run_pipeline.py` | Pipeline completo: backtest (todos los períodos y universos) + Top actual de cada universo + JSON del frontend |
 | `backend/server.py` | API HTTP: `GET /api/report` (JSON con Top actual y backtest, leído de SQLite) |
+| `backend/prune_db.py` | Limpia a mano las corridas viejas de SQLite (se hace sola una vez por día) |
 | `backend/export_frontend.py` | Escribe ese mismo JSON en `frontend/public/data/report.json` (lo hacen solos los dos scripts al terminar) |
 | `backend/top3/` | Paquete con la lógica (ver abajo); los scripts de arriba son solo la línea de comandos |
 | `backend/config.toml` | Configuración (ver [configuracion.md](configuracion.md)) |

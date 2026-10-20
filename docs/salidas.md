@@ -20,18 +20,16 @@ Las tablas de selecciones tienen una fila por rebalanceo: `Fecha`, los tickers `
 `Cap. aprox. (US$ B)` (informativa), `Capital (US$)` (valor al entrar a esa fila) y `Gan/Pérd` (acumulado
 vs. el capital inicial, en verde si es positivo). Se puede desactivar el color con la variable `NO_COLOR=1`.
 
-## SQLite (`backend/data/top3.db`)
+## Limpieza de la base
 
-| Tabla | Contenido |
-|---|---|
-| `constituents_history` | Composición histórica (CSV) |
-| `index_changes` | Altas y bajas de Wikipedia |
-| `constituents_current` | Lista actual de Wikipedia |
-| `prices` | Precios ajustados por ticker y fecha |
-| `shares` | Acciones en circulación actuales (para la capitalización aproximada) |
-| `meta` | Fechas de descarga y rango de precios (control del caché) |
-| `runs`, `selections`, `equity` | Cada corrida: parámetros, selecciones y curva de capital |
-| `actual_picks` | Resultados de `top3_actual.py` (fecha de datos, plazo, ticker, retorno, precio, capitalización) |
+Cada backtest guarda cientos de corridas (parámetros, selecciones y curva de capital) y el informe solo usa la última de
+cada combinación del día más reciente. Para que la base no crezca sin límite:
+
+- Al terminar `top3_backtest.py` (y por lo tanto `run_pipeline.py`) se borran, **una vez por día**, las corridas de
+  más de `[data] runs_keep_days` días (contados desde el último día con corridas) y las repetidas del mismo día con
+  los mismos parámetros. Después se compacta el archivo.
+- Para forzarlo a mano: `python prune_db.py` (o `--keep-days N`).
+- No se toca `actual_picks` (historial del Top actual, que usa la comparación con la corrida anterior) ni los precios.
 
 ## Depuración
 

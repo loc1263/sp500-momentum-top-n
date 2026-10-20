@@ -14,7 +14,7 @@ from top3.analysis import Context
 from top3.config import DataSettings, load_config
 from top3.console import configure_console
 from top3.constituents import Constituents, ensure_constituents
-from top3.db import open_db
+from top3.db import maybe_prune_runs, open_db
 from top3.logs import log, log_config, setup_logging
 from top3.prices import ensure_prices, load_prices
 from top3.report_data import export_report
@@ -134,6 +134,11 @@ def main(argv=None) -> None:
         for path in reports:
             print(f"  {path}")
     export_report(cfg)
+    conn = open_db(cfg["data"]["db_path"])
+    try:
+        maybe_prune_runs(conn, int(cfg["data"]["runs_keep_days"]))
+    finally:
+        conn.close()
 
 
 if __name__ == "__main__":

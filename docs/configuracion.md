@@ -11,6 +11,7 @@
 | | `batch_size` | `100` | Tickers por lote al pedir precios a Yahoo |
 | | `shares_workers` | `8` | Hilos en paralelo para las acciones en circulación |
 | | `price_overlap_days`, `stale_days`, `price_drift_tolerance` | `7`, `30`, `0.0001` | Actualización incremental: días de solape, días sin cotizar para dar un ticker de baja y diferencia que fuerza a rebajarlo completo |
+| | `runs_keep_days` | `7` | Días con corridas del backtest que se conservan en SQLite (mínimo 1); ver [Limpieza](salidas.md#limpieza-de-la-base) |
 | `[backtest]` | `start_date`, `end_date` | `""` | Período a evaluar (`"YYYY-MM-DD"`); vacío = automático |
 | | `backtest_years` | `5` | Años hacia atrás desde `end_date` si `start_date` está vacío |
 | | `periods_years` | `[3, 5, 10]` | Períodos (años) que se simulan; el frontend deja elegir entre ellos. `--years N` corre uno solo |

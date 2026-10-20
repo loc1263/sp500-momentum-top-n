@@ -18,6 +18,7 @@ DEFAULT_CONFIG: dict[str, dict] = {
         "price_overlap_days": 7,
         "stale_days": 30,
         "price_drift_tolerance": 0.0001,
+        "runs_keep_days": 7,
     },
     "backtest": {
         "start_date": "",
