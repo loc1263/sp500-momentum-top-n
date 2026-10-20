@@ -1,4 +1,5 @@
 <script>
+  import TickerLink from './TickerLink.svelte';
   import { pct, share, usd, billions, sign } from './format.js';
 
   let { actual } = $props();
@@ -39,7 +40,7 @@
       {#each actual.picks as p (p.ticker)}
         <tr>
           <td>{p.rank}</td>
-          <td><strong>{p.ticker}</strong></td>
+          <td><TickerLink ticker={p.ticker} /></td>
           <td class="r {sign(p.return)}">{pct(p.return)}</td>
           <td class="r">{billions(p.market_cap)}</td>
           <td class="r">{usd(p.price)}</td>

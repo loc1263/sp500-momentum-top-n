@@ -4,6 +4,16 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Top N S&amp;P 500</title>
+    <script>
+      // Tema antes del primer render, para evitar el flash
+      try {
+        const saved = localStorage.getItem('theme');
+        const dark = saved ? saved === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+        document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+      } catch {
+        /* sin localStorage: queda el tema claro */
+      }
+    </script>
   </head>
   <body>
     <div id="app"></div>

@@ -17,6 +17,17 @@
   let chosenYears = $state(null); // null = período por defecto del config
   let report = $state(null);
   let error = $state(null);
+  let dark = $state(document.documentElement.dataset.theme === 'dark');
+
+  function toggleTheme() {
+    dark = !dark;
+    document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+    try {
+      localStorage.setItem('theme', dark ? 'dark' : 'light');
+    } catch {
+      /* el tema vale solo para esta sesión */
+    }
+  }
 
   // Primero la API del backend; si no está levantada, el JSON estático exportado
   async function load() {
@@ -58,6 +69,9 @@
 
 <main>
   <header>
+    <button class="theme" onclick={toggleTheme} aria-label="Cambiar tema claro/oscuro" title="Cambiar tema">
+      {dark ? '☀️ Claro' : '🌙 Oscuro'}
+    </button>
     <h1>Top {report?.settings.top_n ?? 'N'} del S&amp;P 500</h1>
     <p class="sub">
       Momentum: cada N meses se compran, con ponderación igual, las acciones que más subieron en los últimos N meses.
@@ -130,6 +144,11 @@
 
 <style>
   main { max-width: 1280px; margin: 0 auto; padding: 24px 16px 48px; }
+  header { position: relative; }
+  .theme {
+    position: absolute; top: 0; right: 0; background: var(--card); color: var(--fg); border: 1px solid var(--line);
+    border-radius: 6px; padding: 4px 10px; font: inherit; font-size: .85rem; cursor: pointer;
+  }
   nav { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 16px; margin: 16px 0 8px; }
   .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); flex: 1 1 auto; }
   .tabs button {

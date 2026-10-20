@@ -3,12 +3,11 @@
   --pos: #1a7f37; --neg: #cf222e; --accent: #0969da;
   --s1: #0969da; --s2: #bf3989; --s3: #1a7f37; --s4: #bc4c00; --s5: #8250df;
 }
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0d1117; --fg: #e6edf3; --muted: #8b949e; --line: #30363d; --card: #161b22;
-    --pos: #3fb950; --neg: #f85149; --accent: #58a6ff;
-    --s1: #58a6ff; --s2: #f778ba; --s3: #3fb950; --s4: #f0883e; --s5: #bc8cff;
-  }
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0d1117; --fg: #e6edf3; --muted: #8b949e; --line: #30363d; --card: #161b22;
+  --pos: #3fb950; --neg: #f85149; --accent: #58a6ff;
+  --s1: #58a6ff; --s2: #f778ba; --s3: #3fb950; --s4: #f0883e; --s5: #bc8cff;
 }
 * { box-sizing: border-box; }
 body {

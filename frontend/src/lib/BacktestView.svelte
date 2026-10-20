@@ -1,6 +1,7 @@
 <script>
   import Chart from './Chart.svelte';
   import Range from './Range.svelte';
+  import TickerLink from './TickerLink.svelte';
   import { pct, usd, sign } from './format.js';
 
   let { universe, settings } = $props();
@@ -103,7 +104,7 @@
           <td>{h.date}</td>
           {#each Array(columns) as _, i}
             {@const p = h.picks[i]}
-            <td>{#if p}<strong>{p.ticker}</strong> <span class={sign(p.return)}>{pct(p.return)}</span>{/if}</td>
+            <td>{#if p}<TickerLink ticker={p.ticker} /> <span class={sign(p.return)}>{pct(p.return)}</span>{/if}</td>
           {/each}
           <td class="r">{usd(h.capital)}</td>
           <td class="r {sign(h.gain)}">{pct(h.gain)}</td>
