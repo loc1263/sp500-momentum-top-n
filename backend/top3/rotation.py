@@ -19,6 +19,16 @@ def previous_picks(conn: sqlite3.Connection, as_of: str, months: int,
     return prev, [r[0] for r in rows]
 
 
+def previous_etf_top(conn: sqlite3.Connection, as_of: str, top_n: int) -> tuple[str | None, list[str]]:
+    """(fecha, tickers del top) del ranking de ETFs guardado inmediatamente anterior a `as_of`, o (None, [])."""
+    prev = conn.execute("SELECT MAX(as_of) FROM etf_scores WHERE as_of < ?", (as_of,)).fetchone()[0]
+    if prev is None:
+        return None, []
+    rows = conn.execute("SELECT ticker FROM etf_scores WHERE as_of = ? AND rank <= ? ORDER BY rank",
+                        (prev, top_n)).fetchall()
+    return prev, [r[0] for r in rows]
+
+
 def diff_picks(previous: list[str], current: list[str]) -> dict[str, list[str]]:
     """Tickers que entran, salen y se mantienen (en el orden del ranking actual / anterior)."""
     return {"entered": [t for t in current if t not in previous],

@@ -44,17 +44,19 @@ def test_actual_args():
 
 def test_pipeline_steps(cfg):
     class Args:
-        config, no_cache, years, tests, skip_backtest, skip_actual = "config.toml", True, 7.0, True, False, False
+        config, no_cache, years, tests, skip_backtest, skip_actual, skip_etf = (
+            "config.toml", True, 7.0, True, False, False, False)
 
     steps = run_pipeline.build_steps(cfg, Args)
     names = [n for n, _ in steps]
     assert names[0] == "Tests" and names[-1] == "Exportar JSON del frontend"
-    assert len(steps) == 1 + 1 + 3 + 1                                 # tests + backtest + 3 universos + export
+    assert len(steps) == 1 + 1 + 3 + 1 + 1                     # tests + backtest + 3 universos + ETFs + export
+    assert "Ranking de ETFs de Vanguard" in names
     backtest = steps[1][1]
     assert "--sweep" in backtest and "--no-cache" in backtest and backtest[backtest.index("--years") + 1] == "7"
     actual_cmds = [c for n, c in steps if n.startswith("Top actual")]
     assert [("--min-cap-billions" in c) for c in actual_cmds] == [False, True, True]
 
-    Args.skip_backtest = Args.skip_actual = True
+    Args.skip_backtest = Args.skip_actual = Args.skip_etf = True
     Args.tests = False
     assert [n for n, _ in run_pipeline.build_steps(cfg, Args)] == ["Exportar JSON del frontend"]

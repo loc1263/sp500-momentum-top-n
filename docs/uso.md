@@ -85,3 +85,31 @@ Además del Top, muestra:
   backtest) y quedan listados como advertencia en la consola y en el log.
 
 Correr el script dos veces con los mismos datos reemplaza el resultado en lugar de duplicarlo.
+
+## ETFs de Vanguard (`top3_etf.py`)
+
+Ranking global de momentum de los ETFs de Vanguard, **sin backtest**: qué ETFs tienen hoy (o a una fecha dada) más
+retorno por unidad de riesgo.
+
+```
+python top3_etf.py                       # ranking de hoy; muestra el top de [etf] top_n
+python top3_etf.py --top-n 30            # más filas en la consola (el HTML siempre trae todos)
+python top3_etf.py --as-of 2025-06-30    # ranking con los datos hasta esa fecha
+python top3_etf.py --csv otra_lista.csv  # otra lista de ETFs
+python run_pipeline.py --skip-etf        # el pipeline lo incluye salvo que se omita
+```
+
+**Score.** Para cada plazo de `[etf] horizons_months` (3, 6 y 12 meses por defecto):
+`(retorno del plazo - retorno de la referencia libre de riesgo) / (volatilidad anual x raíz(meses/12))`. El score es el
+promedio de esos cocientes. La referencia es `[etf] risk_free_ticker` (VUSB, bonos ultracortos): sin restarla, un ETF
+casi sin riesgo ganaría siempre. Además del score la tabla muestra el retorno de cada plazo, la volatilidad anual y la
+caída máxima del plazo más largo, y la distancia del precio a su media de 200 ruedas (positivo = tendencia alcista).
+
+**La lista** está en `backend/vanguard_etfs.csv` (`ticker,name,category`) y se mantiene a mano: Vanguard lanza muy
+pocos ETFs al año. Un ticker sin precios en Yahoo avisa con `TOP-ETF-002`; los ETFs sin historia suficiente para el
+plazo más largo quedan fuera del ranking y se listan (`TOP-ETF-003`).
+
+**`--as-of`** usa la lista actual, así que no incluye los ETFs lanzados después de esa fecha ni los cerrados: sirve
+para ver cómo se veía el ranking, no como backtest, y no se guarda. Cada corrida normal se guarda en la tabla
+`etf_scores` y se compara el top con el de la corrida anterior (entran / salen). Reporte HTML en `output/etf/`.
+

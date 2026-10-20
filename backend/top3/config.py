@@ -45,12 +45,21 @@ DEFAULT_CONFIG: dict[str, dict] = {
         "sweep_prefix": "top3_sweep",
         "offsets_prefix": "top3_offsets",
         "actual_prefix": "top3_actual",
+        "etf_subdir": "etf",
+        "etf_prefix": "top3_etf",
         "log_dir": "log",
         "backtest_log": "top3_backtest.log",
         "actual_log": "top3_actual.log",
+        "etf_log": "top3_etf.log",
         "export_log": "export_frontend.log",
         "server_log": "server.log",
         "frontend_data": "../frontend/public/data/report.json",
+    },
+    "etf": {
+        "csv": "vanguard_etfs.csv",           # lista de ETFs de Vanguard (ticker, name, category)
+        "horizons_months": [3, 6, 12],         # plazos del retorno ajustado por riesgo; el score es su promedio
+        "top_n": 15,                           # cuántos se muestran en la consola
+        "risk_free_ticker": "VUSB",            # ETF de bonos ultracortos: su retorno se resta al de cada ETF; "" = sin restar
     },
     "server": {
         "host": "127.0.0.1",

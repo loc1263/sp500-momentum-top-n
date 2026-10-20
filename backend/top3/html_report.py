@@ -188,6 +188,29 @@ def offsets_report(ctx: Context, terms: list[Term], min_cap_b: float | None) -> 
                         _period_subtitle(ctx) + universe.subtitle(min_cap_b), body, ctx.file_suffix)
 
 
+def etf_report(cfg: dict, as_of: str, horizons: list[int], top_n: int, headers: list[str], rows: list[list[str]],
+               notes: list[str], historical: bool, risk_free: str | None = None) -> Path:
+    out = cfg["output"]
+    right = tuple(range(4, len(headers)))
+    signed = tuple(range(5, 5 + len(horizons))) + (len(headers) - 2, len(headers) - 1)
+    excess = (f" El retorno es el exceso sobre {html.escape(risk_free)}, un ETF de bonos ultracortos usado como "
+              "referencia libre de riesgo (sin eso, los ETFs casi sin riesgo ganarían siempre)." if risk_free else "")
+    body = (
+        '<div class="cards">' + card("Datos al cierre del", as_of) + card("ETFs rankeados", str(len(rows)))
+        + card("Plazos", ", ".join(f"{h}m" for h in sorted(horizons))) + '</div>'
+        + ('<p class="sub"><strong>Fecha pedida con --as-of:</strong> se usa la lista actual de ETFs, así que no es '
+           'un backtest (no incluye los ETFs lanzados después ni los cerrados).</p>' if historical else '')
+        + f'<h2>Ranking global (top {top_n} arriba)</h2>'
+        '<p class="sub">Score = promedio, entre los plazos, del retorno dividido por la volatilidad anual escalada al '
+        f'plazo: cuánto subió por unidad de riesgo.{excess} «vs SMA200» es la distancia del precio a su media de 200 '
+        'ruedas (positivo = en tendencia alcista). Herramienta de análisis, no una recomendación de inversión.</p>'
+        + html_table(headers, rows, right_cols=right, signed_cols=signed)
+        + ''.join(f'<p class="sub">{html.escape(n)}</p>' for n in notes if n))
+    suffix = f"_asof_{as_of}" if historical else ""
+    return write_html(out["dir"], out["etf_prefix"] + suffix, "ETFs de Vanguard - momentum ajustado por riesgo",
+                      f"Datos al {as_of}", body, out["etf_subdir"])
+
+
 def actual_report(cfg: dict, top_n: int, months: int, min_cap_b: float | None, as_of, window: pd.DataFrame,
                   headers: list[str], rows: list[list[str]], weight: float, notes: list[str] = ()) -> Path:
     body = (

@@ -25,8 +25,12 @@
 | `[server]` | `host`, `port`, `cors_origin` | `127.0.0.1`, `8000`, `*` | API HTTP de `server.py` |
 | `[output]` | `dir` | `"output"` | Carpeta de los reportes HTML |
 | | `frontend_data` | `"../frontend/public/data/report.json"` | JSON estático para el frontend |
-| | `backtest_subdir`, `actual_subdir` | `"backtest"`, `"actual"` | Subcarpetas dentro de `dir` |
-| | `backtest_prefix`, `sweep_prefix`, `offsets_prefix`, `actual_prefix` | `top3_*` | Prefijos de los archivos HTML |
+| | `backtest_subdir`, `actual_subdir`, `etf_subdir` | `"backtest"`, `"actual"`, `"etf"` | Subcarpetas dentro de `dir` |
+| | `backtest_prefix`, `sweep_prefix`, `offsets_prefix`, `actual_prefix`, `etf_prefix` | `top3_*` | Prefijos de los archivos HTML |
 | | `log_dir` | `"log"` | Carpeta de los logs |
-| | `backtest_log`, `actual_log` | `top3_*.log` | Nombres de los archivos de log |
+| | `backtest_log`, `actual_log`, `etf_log` | `top3_*.log` | Nombres de los archivos de log |
+| `[etf]` | `csv` | `"vanguard_etfs.csv"` | Lista de ETFs de Vanguard (columnas `ticker`, `name`, `category`) |
+| | `horizons_months` | `[3, 6, 12]` | Plazos del retorno ajustado por riesgo; el score es el promedio de sus cocientes |
+| | `top_n` | `15` | Cuántos ETFs se muestran en la consola (el HTML trae todos) |
+| | `risk_free_ticker` | `"VUSB"` | ETF cuyo retorno se resta al de cada ETF (referencia libre de riesgo); `""` = no restar |
 | `[simulation]` | `months` | `[3, 4, 6, 8, 12]` | Plazos que comparan `--sweep` y `--offsets` |

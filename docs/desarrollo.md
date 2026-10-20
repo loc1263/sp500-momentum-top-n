@@ -14,6 +14,8 @@ docs/          # documentación
 | `start.ps1` | Levanta los dos servidores (`.\start.ps1`; Ctrl+C los detiene) |
 | `backend/top3_backtest.py` | Backtest Point-in-Time, comparación de plazos y sensibilidad al calendario de arranque |
 | `backend/top3_actual.py` | Top N de hoy: las acciones del S&P 500 con mejor retorno en el plazo configurado |
+| `backend/top3_etf.py` | Ranking de momentum ajustado por riesgo de los ETFs de Vanguard (sin backtest) |
+| `backend/vanguard_etfs.csv` | Lista de ETFs de Vanguard (se mantiene a mano) |
 | `backend/run_pipeline.py` | Pipeline completo: backtest (todos los períodos y universos) + Top actual de cada universo + JSON del frontend |
 | `backend/server.py` | API HTTP: `GET /api/report` (JSON con Top actual y backtest, leído de SQLite) |
 | `backend/prune_db.py` | Limpia a mano las corridas viejas de SQLite (se hace sola en cada backtest) |
@@ -39,6 +41,7 @@ docs/          # documentación
 | `analysis.py` | Calendarios de arranque, resumen por plazo y guardado de corridas |
 | `tables.py` | Tablas de resultados (texto) que comparten la consola y el HTML |
 | `console.py`, `html_report.py` | Salida por consola y reportes HTML |
+| `etf.py` | Ranking de ETFs: lista, score ajustado por riesgo, guardado en `etf_scores` y reportes |
 | `rotation.py` | Top actual: cambios contra la corrida anterior y próximo rebalanceo |
 | `workflow.py`, `actual.py` | Flujos completos: backtest normal / sweep / offsets y Top actual |
 | `report_data.py`, `api.py` | JSON del frontend y API HTTP |

@@ -16,6 +16,7 @@ Formato: `TOP-<ÁREA>-<NNN>`.
 | `DAT` | Calidad y faltantes de datos |
 | `BKT` | Backtest |
 | `ACT` | Top actual |
+| `ETF` | Ranking de ETFs de Vanguard |
 | `API` | Servidor HTTP (también viaja como `code` en la respuesta 500 de `/api/report`) |
 | `SYS` | Avisos de Python capturados (pandas, yfinance...) |
 
@@ -47,6 +48,11 @@ Para buscar en el log: `grep TOP-BKT backend/log/top3_backtest.log`.
 | `TOP-BKT-006` | Aviso | Un plazo/calendario de arranque no produjo resultado | Se omite ese calendario; el resto continúa. |
 | `TOP-ACT-001` | Error | No hay ruedas de precios suficientes | Descarga más historia (--no-cache) o reduce el plazo en meses. |
 | `TOP-ACT-002` | Aviso | Tickers con huecos en la ventana quedan fuera del ranking | Misma regla que el backtest. Revisa si Yahoo falló para esos tickers y reintenta. |
+| `TOP-ETF-001` | Error | No hay lista de ETFs utilizable | Revisa [etf] csv en config.toml: el archivo debe existir y tener las columnas ticker, name, category. |
+| `TOP-ETF-002` | Aviso | ETFs de la lista sin precios en Yahoo | Pueden estar dados de baja o con el ticker mal escrito; quítalos o corrígelos en el CSV. |
+| `TOP-ETF-003` | Aviso | ETFs fuera del ranking por huecos de precios o poca historia | Los ETFs nuevos entran cuando acumulan historia para el plazo más largo. |
+| `TOP-ETF-004` | Error | Ningún ETF se pudo rankear | Descarga más historia o reduce [etf] horizons_months. |
+| `TOP-ETF-005` | Aviso | La referencia libre de riesgo no está disponible | El score se calcula sin restarla (los ETFs casi sin riesgo quedan arriba). Revisa [etf] risk_free_ticker: debe estar en la lista y tener historia completa. |
 | `TOP-API-001` | Error | Error armando /api/report | Revisa que exista la base SQLite y que se haya corrido el pipeline al menos una vez. |
 | `TOP-SYS-001` | Aviso | Aviso de Python (pandas, yfinance u otra librería) | El mensaje original trae el archivo y la línea. |
 

@@ -10,6 +10,7 @@ El nombre lleva la fecha de la corrida (`YYYYMMDD`); si se corre dos veces el mi
 | `--sweep` | `output/backtest/top3_sweep_Ny_YYYYMMDD.html` |
 | `--offsets` | `output/backtest/top3_offsets_Ny_YYYYMMDD.html` |
 | Top actual | `output/actual/top3_actual_YYYYMMDD.html` |
+| ETFs de Vanguard | `output/etf/top3_etf_YYYYMMDD.html` (con `--as-of`: `top3_etf_asof_<fecha>_YYYYMMDD.html`) |
 
 Con filtro de universo el nombre suma un sufijo: `_largecap` (>= 10 B), `_megacap` (>= 200 B) o `_capXB`
 para otro umbral. `Ny` es el período en años (`_3y`, `_5y`, `_10y`). Por ejemplo `top3_sweep_megacap_5y_20261020.html`.
@@ -39,6 +40,7 @@ errores** agrupado por código, con cuántas veces ocurrió, un ejemplo y qué h
 | `shares` | Acciones en circulación actuales (para la capitalización aproximada) |
 | `meta` | Fechas de descarga y rango de precios (control del caché) |
 | `runs`, `selections`, `equity` | Cada corrida: parámetros, selecciones y curva de capital |
+| `etf_scores` | Ranking de ETFs de Vanguard por corrida (fecha de datos, posición, score, volatilidad, caída máxima, distancia a la SMA200, retornos por plazo) |
 | `actual_picks` | Resultados de `top3_actual.py` (fecha de datos, plazo, ticker, retorno, precio, capitalización) |
 
 ## Limpieza de la base

@@ -113,6 +113,20 @@ def print_offsets(ctx: Context, terms: list[Term], min_cap_b: float | None) -> N
             print_table(*tables.calendar_table(t.calendars))
 
 
+def print_etf(as_of: str, horizons: list[int], top_n: int, ranked: int, headers: list[str], rows: list[list[str]],
+              notes: list[str], historical: bool, risk_free: str | None = None) -> None:
+    print_banner(f"ETFs DE VANGUARD - momentum ajustado por riesgo ({ranked} rankeados)", 78)
+    print(f"Datos al cierre del {as_of}" + (" (fecha pedida con --as-of: lista actual, no es un backtest)"
+                                            if historical else ""))
+    excess = f" (exceso sobre {risk_free})" if risk_free else ""
+    print(f"Score = promedio del retorno{excess} / volatilidad en {', '.join(str(h) for h in horizons)} meses. "
+          f"Top {top_n}:\n")
+    print_table(headers[:2] + headers[3:], [r[:2] + r[3:] for r in rows[:top_n]], right_from=3)
+    print()
+    for line in filter(None, notes):
+        print(line)
+
+
 def print_actual(top_n: int, months: int, min_cap_b: float | None, as_of, window: pd.DataFrame,
                  headers: list[str], rows: list[list[str]], weight: float, notes: list[str] = ()) -> None:
     print_banner(f"TOP {top_n} S&P 500{universe.title(min_cap_b)} - últimos {months} meses", 70)

@@ -1,4 +1,5 @@
 """Datos del frontend: arma el JSON (Top actual + backtest) con los últimos resultados guardados en SQLite."""
+import csv
 import json
 import sqlite3
 import statistics
@@ -106,6 +107,35 @@ def _actual(conn: sqlite3.Connection, today: date | None = None) -> list[dict]:
     return out
 
 
+def _etf(conn: sqlite3.Connection, cfg: dict) -> dict | None:
+    """Último ranking de ETFs de Vanguard guardado, con nombre y categoría de la lista (CSV)."""
+    as_of = conn.execute("SELECT MAX(as_of) FROM etf_scores").fetchone()[0]
+    if not as_of:
+        return None
+    etf_cfg = cfg["etf"]
+    top_n = int(etf_cfg["top_n"])
+    try:
+        with open(etf_cfg["csv"], encoding="utf-8", newline="") as f:
+            info = {r["ticker"].strip().upper(): r for r in csv.DictReader(f)}
+    except OSError:
+        info = {}
+    rows = []
+    for rank, ticker, score, vol, max_dd, sma_dist, returns, run_at in conn.execute(
+            "SELECT rank, ticker, score, vol, max_dd, sma_dist, returns, run_at FROM etf_scores WHERE as_of = ? "
+            "ORDER BY rank", (as_of,)):
+        meta = info.get(ticker, {})
+        rows.append({"rank": rank, "ticker": ticker, "name": meta.get("name", "").strip(),
+                     "category": meta.get("category", "").strip(), "score": score, "vol": vol, "max_dd": max_dd,
+                     "sma_dist": sma_dist, "returns": json.loads(returns)})
+    prev_as_of, prev = rotation.previous_etf_top(conn, as_of, top_n)
+    risk_free = (etf_cfg.get("risk_free_ticker") or "").upper()
+    return {"as_of": as_of, "run_at": run_at, "top_n": top_n, "horizons": sorted(int(h) for h in rows[0]["returns"]),
+            "risk_free": risk_free if any(r["ticker"] == risk_free for r in rows) else None,
+            "previous_as_of": prev_as_of,
+            "changes": rotation.diff_picks(prev, [r["ticker"] for r in rows[:top_n]]) if prev_as_of else None,
+            "rows": rows}
+
+
 def build_report(conn: sqlite3.Connection, cfg: dict) -> dict:
     bt = cfg["backtest"]
     initial_capital = float(bt["initial_capital"])
@@ -123,6 +153,7 @@ def build_report(conn: sqlite3.Connection, cfg: dict) -> dict:
                      "min_cap_billions": float(cfg["universe"]["min_cap_billions"]),
                      "periods_years": sorted({p["years"] for u in backtest for p in u["periods"]})},
         "actual": _actual(conn),
+        "etf": _etf(conn, cfg),
         "backtest": backtest,
     }
 

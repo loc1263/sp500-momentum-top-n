@@ -84,6 +84,19 @@ ACT_SHORT_WINDOW = _code("TOP-ACT-001", "error", "No hay ruedas de precios sufic
 ACT_GAPS = _code("TOP-ACT-002", "warning", "Tickers con huecos en la ventana quedan fuera del ranking",
                  "Misma regla que el backtest. Revisa si Yahoo falló para esos tickers y reintenta.")
 
+# ETFs de Vanguard
+ETF_NO_LIST = _code("TOP-ETF-001", "error", "No hay lista de ETFs utilizable",
+                    "Revisa [etf] csv en config.toml: el archivo debe existir y tener las columnas ticker, name, category.")
+ETF_NO_PRICES = _code("TOP-ETF-002", "warning", "ETFs de la lista sin precios en Yahoo",
+                      "Pueden estar dados de baja o con el ticker mal escrito; quítalos o corrígelos en el CSV.")
+ETF_EXCLUDED = _code("TOP-ETF-003", "warning", "ETFs fuera del ranking por huecos de precios o poca historia",
+                     "Los ETFs nuevos entran cuando acumulan historia para el plazo más largo.")
+ETF_EMPTY = _code("TOP-ETF-004", "error", "Ningún ETF se pudo rankear",
+                  "Descarga más historia o reduce [etf] horizons_months.")
+ETF_NO_RISK_FREE = _code("TOP-ETF-005", "warning", "La referencia libre de riesgo no está disponible",
+                         "El score se calcula sin restarla (los ETFs casi sin riesgo quedan arriba). "
+                         "Revisa [etf] risk_free_ticker: debe estar en la lista y tener historia completa.")
+
 # Servidor
 API_REPORT = _code("TOP-API-001", "error", "Error armando /api/report",
                    "Revisa que exista la base SQLite y que se haya corrido el pipeline al menos una vez.")

@@ -36,7 +36,7 @@ docs/          # documentación
 
 | Documento | Contenido |
 |---|---|
-| [docs/uso.md](docs/uso.md) | Comandos, pipeline completo, modos del backtest y Top actual |
+| [docs/uso.md](docs/uso.md) | Comandos, pipeline completo, modos del backtest, Top actual y ranking de ETFs de Vanguard |
 | [docs/como-funciona.md](docs/como-funciona.md) | Metodología, universo y capitalización, limitaciones |
 | [docs/configuracion.md](docs/configuracion.md) | Todas las claves de `config.toml` |
 | [docs/salidas.md](docs/salidas.md) | Reportes HTML, consola, tablas SQLite y logs |

@@ -45,6 +45,8 @@ def build_steps(cfg, args):
         for level in levels:
             name = f"Top actual - {'índice completo' if not level else f'cap. >= US$ {level:g} B'}"
             steps.append((name, [py, "top3_actual.py", *config, *cache, *universe_args(level)]))
+    if not args.skip_etf:
+        steps.append(("Ranking de ETFs de Vanguard", [py, "top3_etf.py", *config]))
     steps.append(("Exportar JSON del frontend", [py, "export_frontend.py", *config]))
     return steps
 
@@ -58,6 +60,7 @@ def main():
     ap.add_argument("--tests", action="store_true", help="Corre los tests antes del pipeline")
     ap.add_argument("--skip-backtest", action="store_true", help="Omite el backtest")
     ap.add_argument("--skip-actual", action="store_true", help="Omite el Top actual")
+    ap.add_argument("--skip-etf", action="store_true", help="Omite el ranking de ETFs de Vanguard")
     args = ap.parse_args()
 
     cfg = load_config(args.config)

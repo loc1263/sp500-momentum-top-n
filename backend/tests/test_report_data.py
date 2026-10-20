@@ -5,6 +5,7 @@ import urllib.request
 from http.server import ThreadingHTTPServer
 
 import pandas as pd
+import pytest
 
 from top3.analysis import save_run
 from top3.api import ReportCache, make_handler
@@ -141,3 +142,36 @@ def test_actual_without_previous_run_has_no_changes(conn):
     conn.commit()
     (item,) = _actual(conn, today=date(2024, 9, 5))
     assert item["previous_as_of"] is None and item["changes"] is None
+
+
+def _add_etf(conn, as_of, ranking):
+    conn.executemany("INSERT INTO etf_scores VALUES (?,?,?,?,?,?,?,?,?)", [
+        (f"{as_of}T10:00:00", as_of, rank, ticker, 2.0 - rank / 10, 0.1, -0.05, 0.03, '{"3": 0.05, "12": 0.2}')
+        for rank, ticker in enumerate(ranking, 1)])
+    conn.commit()
+
+
+def test_etf_ranking_in_the_report(conn, cfg, tmp_path):
+    from top3.report_data import _etf
+    csv = tmp_path / "e.csv"
+    csv.write_text("ticker,name,category\nVTI,Total Stock Market,Amplio\nVUSB,Ultra-Short Bond,Bonos\n", encoding="utf-8")
+    cfg["etf"].update(csv=str(csv), top_n=1, risk_free_ticker="VUSB")
+    assert _etf(conn, cfg) is None
+    _add_etf(conn, "2024-08-29", ["VTI", "VUSB"])
+    _add_etf(conn, "2024-08-30", ["VUSB", "VTI"])
+    etf = _etf(conn, cfg)
+    assert etf["as_of"] == "2024-08-30" and etf["horizons"] == [3, 12] and etf["risk_free"] == "VUSB"
+    assert [r["ticker"] for r in etf["rows"]] == ["VUSB", "VTI"]
+    assert etf["rows"][1] == {"rank": 2, "ticker": "VTI", "name": "Total Stock Market", "category": "Amplio",
+                              "score": pytest.approx(1.8), "vol": 0.1, "max_dd": -0.05, "sma_dist": 0.03,
+                              "returns": {"3": 0.05, "12": 0.2}}
+    assert etf["previous_as_of"] == "2024-08-29"
+    assert etf["changes"] == {"entered": ["VUSB"], "exited": ["VTI"], "kept": []}   # top_n = 1
+
+
+def test_etf_report_survives_a_missing_csv(conn, cfg, tmp_path):
+    from top3.report_data import _etf
+    cfg["etf"].update(csv=str(tmp_path / "no_existe.csv"), risk_free_ticker="")
+    _add_etf(conn, "2024-08-30", ["VTI"])
+    etf = _etf(conn, cfg)
+    assert etf["rows"][0]["name"] == "" and etf["risk_free"] is None and etf["changes"] is None
