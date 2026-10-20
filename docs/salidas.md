@@ -24,6 +24,23 @@ Los avisos del log salen en **amarillo** y los errores en **rojo** (incluidos lo
 tracebacks sin capturar). Solo si la salida es una terminal: al redirigir a archivo o pipe, o con `NO_COLOR=1`, va sin
 color. El archivo de log nunca lleva códigos de color.
 
+Al terminar cada script (y `run_pipeline.py`, con los de todos sus pasos juntos) se imprime un **resumen de avisos y
+errores** agrupado por código, con cuántas veces ocurrió, un ejemplo y qué hacer según
+[errores.md](errores.md); los errores van primero. Si no hubo ninguno, no se imprime nada.
+
+## SQLite (`backend/data/top3.db`)
+
+| Tabla | Contenido |
+|---|---|
+| `constituents_history` | Composición histórica (CSV) |
+| `index_changes` | Altas y bajas de Wikipedia |
+| `constituents_current` | Lista actual de Wikipedia |
+| `prices` | Precios ajustados por ticker y fecha |
+| `shares` | Acciones en circulación actuales (para la capitalización aproximada) |
+| `meta` | Fechas de descarga y rango de precios (control del caché) |
+| `runs`, `selections`, `equity` | Cada corrida: parámetros, selecciones y curva de capital |
+| `actual_picks` | Resultados de `top3_actual.py` (fecha de datos, plazo, ticker, retorno, precio, capitalización) |
+
 ## Limpieza de la base
 
 Cada backtest guarda cientos de corridas (parámetros, selecciones y curva de capital) y el informe solo usa la última de

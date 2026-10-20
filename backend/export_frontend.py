@@ -6,7 +6,7 @@ terminar; este script sirve para regenerarlo sin volver a correr nada.
 import argparse
 
 from top3.config import load_config
-from top3.logs import log_config, setup_logging
+from top3.logs import log_config, run_cli, setup_logging
 from top3.report_data import export_report
 
 
@@ -21,4 +21,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    run_cli(main)

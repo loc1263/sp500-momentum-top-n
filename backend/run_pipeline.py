@@ -12,13 +12,15 @@ Períodos, plazos y universos salen de config.toml ([backtest] periods_years, [s
 """
 import argparse
 import logging
+import os
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
 from top3.config import load_config
-from top3.logs import paint
+from top3.logs import STEP_ENV, SUMMARY_FILE_ENV, format_summary, merge_summaries, paint
 
 HERE = Path(__file__).resolve().parent
 
@@ -62,13 +64,15 @@ def main():
     steps = build_steps(cfg, args)
     print(f"Pipeline: {len(steps)} pasos\n")
 
+    summary_file = Path(tempfile.mkdtemp()) / "summary.jsonl"  # cada paso deja ahí sus avisos y errores
     results, t_start = [], time.time()
     for i, (name, cmd) in enumerate(steps, 1):
         print("=" * 78)
         print(f"[{i}/{len(steps)}] {name}")
         print("=" * 78, flush=True)
         t0 = time.time()
-        rc = subprocess.run(cmd, cwd=HERE).returncode
+        env = {**os.environ, SUMMARY_FILE_ENV: str(summary_file), STEP_ENV: name}
+        rc = subprocess.run(cmd, cwd=HERE, env=env).returncode
         results.append((name, rc, time.time() - t0))
         if rc:
             print(paint(f"\nFALLÓ el paso «{name}» (código {rc}). Se corta el pipeline.", logging.ERROR),
@@ -83,6 +87,10 @@ def main():
     for name, _ in steps[len(results):]:
         print(f"  omitido         {name}")
     print(f"\nTotal: {time.time() - t_start:.0f} s")
+    items = merge_summaries(summary_file)
+    if items:
+        print("\n" + "\n".join(format_summary(items, str(Path(cfg["output"]["log_dir"]) / "*.log"))),
+              file=sys.stderr)
     sys.exit(1 if any(rc for _, rc, _ in results) else 0)
 
 

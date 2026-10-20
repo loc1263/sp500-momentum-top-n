@@ -128,3 +128,78 @@ def test_run_cli_logs_systemexit_message_as_error(tmp_path):
         for h in list(logs.log.handlers):
             h.close()
         logs.log.handlers.clear()
+
+
+def _fresh_logging(tmp_path):
+    from top3 import logs
+    logs.setup_logging("s.log", str(tmp_path))
+    return logs
+
+
+def _close_logging():
+    import logging
+    from top3 import logs
+    logging.captureWarnings(False)
+    for h in list(logs.log.handlers):
+        h.close()
+    logs.log.handlers.clear()
+
+
+def test_run_cli_prints_a_summary_grouped_by_code(tmp_path, capsys, monkeypatch):
+    from top3 import errors as E
+    monkeypatch.delenv("TOP3_SUMMARY_FILE", raising=False)
+    logs = _fresh_logging(tmp_path)
+    try:
+        def main():
+            for day in ("2016-11-01", "2016-12-01", "2017-01-01"):
+                logs.log.warning(E.BKT_FEW_TICKERS.msg("Pocos tickers disponibles en %s"), day)
+            logs.log.error(E.BKT_EMPTY.msg("sin rebalanceos"))
+        logs.run_cli(main)
+    finally:
+        _close_logging()
+    err = capsys.readouterr().err
+    assert "RESUMEN DE AVISOS Y ERRORES: 1 errores, 3 avisos" in err
+    assert err.index("ERROR TOP-BKT-001  x1") < err.index("AVISO TOP-BKT-003  x3")  # errores primero
+    assert "ej.: Pocos tickers disponibles en 2016-11-01" in err and "qué hacer:" in err
+    assert "s.log" in err
+
+
+def test_run_cli_prints_no_summary_without_warnings(tmp_path, capsys):
+    logs = _fresh_logging(tmp_path)
+    try:
+        logs.run_cli(lambda: logs.log.info("todo bien"))
+    finally:
+        _close_logging()
+    assert "RESUMEN" not in capsys.readouterr().err
+
+
+def test_summary_counts_python_warnings_and_uncoded_messages(tmp_path, capsys, monkeypatch):
+    monkeypatch.delenv("TOP3_SUMMARY_FILE", raising=False)
+    logs = _fresh_logging(tmp_path)
+    try:
+        def main():
+            logs.log.warning("sin código propio")
+            logs.log.warning(logs.SYS_PYTHON_WARNING.msg("PerformanceWarning: fragmentado"))
+        logs.run_cli(main)
+    finally:
+        _close_logging()
+    err = capsys.readouterr().err
+    assert "sin código" in err and "TOP-SYS-001" in err
+
+
+def test_summary_goes_to_the_pipeline_file_when_requested(tmp_path, capsys, monkeypatch):
+    from top3 import errors as E
+    f = tmp_path / "sum.jsonl"
+    monkeypatch.setenv("TOP3_SUMMARY_FILE", str(f))
+    monkeypatch.setenv("TOP3_STEP", "Paso A")
+    logs = _fresh_logging(tmp_path)
+    try:
+        logs.run_cli(lambda: logs.log.warning(E.DAT_NO_SHARES.msg("faltan %d"), 6))
+        monkeypatch.setenv("TOP3_STEP", "Paso B")
+        logs.run_cli(lambda: logs.log.warning(E.DAT_NO_SHARES.msg("faltan %d"), 2))
+    finally:
+        _close_logging()
+    assert "RESUMEN" not in capsys.readouterr().err  # el paso no imprime: lo hace el pipeline
+    (item,) = logs.merge_summaries(f)
+    assert item["code"] == "TOP-DAT-003" and item["steps"] == ["Paso A", "Paso B"]
+    assert logs.merge_summaries(tmp_path / "no_existe.jsonl") == []
