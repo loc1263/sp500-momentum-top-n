@@ -58,3 +58,40 @@ def test_get_current_tickers_applies_aliases(conn, monkeypatch, settings):
     conn.commit()
     monkeypatch.setattr(actual, "download_current_constituents", lambda c, s: None)
     assert actual.get_current_tickers(conn, {"BK": "BNY"}, False, settings) == ["BNY", "AAPL"]
+
+
+def test_compute_top_warns_about_tickers_left_out(caplog):
+    prices = make_prices()
+    prices.loc[prices.index[-50], "T11"] = float("nan")  # un solo hueco en la ventana
+    with caplog.at_level("WARNING"):
+        top, _ = actual.compute_top(prices, 4, 2, 21)
+    assert "T11" not in top.index
+    assert "T11" in caplog.text
+
+
+def run_with_fakes(cfg, tmp_path, monkeypatch, prices):
+    cfg["data"]["db_path"] = str(tmp_path / "t.db")
+    cfg["output"]["dir"] = str(tmp_path / "out")
+    cfg["output"]["log_dir"] = str(tmp_path / "log")
+    tickers = list(prices.columns)
+    monkeypatch.setattr(actual, "get_current_tickers", lambda *a, **k: tickers)
+    monkeypatch.setattr(actual, "get_prices", lambda *a, **k: prices)
+    monkeypatch.setattr(actual, "ensure_shares", lambda conn, ts, *a, **k: {t: 1e7 for t in ts})
+    return actual.run_actual(cfg, months=4, top_n=2, min_cap_b=None, use_cache=True)
+
+
+def test_run_actual_twice_does_not_duplicate_rows(cfg, tmp_path, monkeypatch):
+    from top3.db import open_db
+    prices = make_prices()
+    run_with_fakes(cfg, tmp_path, monkeypatch, prices)
+    run_with_fakes(cfg, tmp_path, monkeypatch, prices)
+    conn = open_db(cfg["data"]["db_path"])
+    assert conn.execute("SELECT COUNT(*) FROM actual_picks").fetchone()[0] == 2
+    conn.close()
+
+
+def test_run_actual_reports_changes_against_previous_run(cfg, tmp_path, monkeypatch):
+    prices = make_prices()
+    run_with_fakes(cfg, tmp_path, monkeypatch, prices.iloc[:-1])  # el día anterior
+    html = run_with_fakes(cfg, tmp_path, monkeypatch, prices).read_text(encoding="utf-8")
+    assert "Cambios vs." in html and "Próximo rebalanceo" in html

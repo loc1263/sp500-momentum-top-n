@@ -5,10 +5,11 @@ from pathlib import Path
 
 import pandas as pd
 
-from . import console, html_report, universe as universes
+from . import console, html_report, rotation, universe as universes
 from .config import DataSettings
 from .constituents import download_current_constituents
 from .db import fetched_today, get_meta, open_db
+from .engine import rank_returns
 from .logs import log
 from .prices import fetch_prices
 from .shares import ensure_shares
@@ -77,10 +78,15 @@ def compute_top(prices: pd.DataFrame, months: int, top_n: int, trading_days_per_
     window = prices.tail(lookback + 1)
     if len(window) < lookback + 1:
         raise SystemExit(f"Solo hay {len(window)} ruedas de precios; se necesitan {lookback + 1}.")
+    # Misma regla que el backtest: un ticker con huecos en la ventana no puede rankearse
+    incomplete = [t for t in window.columns if window[t].isna().any()]
+    if incomplete:
+        log.warning("%d tickers con huecos en la ventana quedan fuera del ranking: %s%s", len(incomplete),
+                    ", ".join(incomplete[:15]), " ..." if len(incomplete) > 15 else "")
+    returns = rank_returns(prices, list(prices.columns), prices.index[-1], lookback)
     window = window.dropna(axis=1, how="any")
     log.debug("Ventana: %s a %s, %d ruedas, %d tickers completos",
               window.index[0].date(), window.index[-1].date(), len(window), window.shape[1])
-    returns = (window.iloc[-1] / window.iloc[0] - 1).dropna().sort_values(ascending=False)
     log.debug("Top 10 retornos:\n%s", returns.head(10).round(4).to_string())
     return returns.head(top_n), window
 
@@ -113,9 +119,15 @@ def run_actual(cfg: dict, months: int, top_n: int, min_cap_b: float | None, use_
             price = float(window[ticker].iloc[-1])
             cap = price * shares[ticker] if ticker in shares else None
             rows.append((run_at, as_of.isoformat(), months, min_cap_b, rank, ticker, float(ret), price, cap))
+        previous_as_of, previous = rotation.previous_picks(conn, as_of.isoformat(), months, min_cap_b)
+        # Repetir la corrida con los mismos datos reemplaza la anterior en vez de duplicar filas
+        conn.execute("DELETE FROM actual_picks WHERE as_of = ? AND months = ? AND COALESCE(min_cap_billions, 0) = ?",
+                     (as_of.isoformat(), months, min_cap_b or 0))
         conn.executemany("INSERT INTO actual_picks VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", rows)
         conn.commit()
         log.info("Resultado guardado en SQLite (tabla actual_picks)")
+        notes = rotation.describe(previous_as_of, rotation.diff_picks(previous, [r[5] for r in rows]),
+                                  rotation.anchor_date(conn, months, min_cap_b), months, today)
     finally:
         conn.close()
 
@@ -123,5 +135,5 @@ def run_actual(cfg: dict, months: int, top_n: int, min_cap_b: float | None, use_
     headers = ["#", "Ticker", f"Retorno {months} meses", "Cap. aprox. (US$ B)", "Precio (US$)", "Peso"]
     table = [[str(r[4]), r[5], f"{r[6] * 100:+.1f}%", f"{r[8] / 1e9:,.0f}" if r[8] else "n/d",
               f"{r[7]:,.2f}", f"{weight:.1f}%"] for r in rows]
-    console.print_actual(top_n, months, min_cap_b, as_of, window, headers, table, weight)
-    return html_report.actual_report(cfg, top_n, months, min_cap_b, as_of, window, headers, table, weight)
+    console.print_actual(top_n, months, min_cap_b, as_of, window, headers, table, weight, notes)
+    return html_report.actual_report(cfg, top_n, months, min_cap_b, as_of, window, headers, table, weight, notes)

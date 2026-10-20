@@ -2,9 +2,10 @@
 import json
 import sqlite3
 import statistics
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 
+from . import rotation
 from .db import open_db
 from .logs import log
 from .universe import label
@@ -81,7 +82,7 @@ def _backtest(conn: sqlite3.Connection, latest: dict, initial_capital: float) ->
     return out
 
 
-def _actual(conn: sqlite3.Connection) -> list[dict]:
+def _actual(conn: sqlite3.Connection, today: date | None = None) -> list[dict]:
     """Último Top actual de cada (universo, plazo) entre los de la fecha más reciente."""
     last_run_at = conn.execute("SELECT MAX(run_at) FROM actual_picks").fetchone()[0]
     if not last_run_at:
@@ -94,8 +95,15 @@ def _actual(conn: sqlite3.Connection) -> list[dict]:
     out = []
     for (cap, months), run_at in sorted(latest.items()):
         mine = [r for r in rows if r[0] == run_at and r[3] == cap and r[2] == months]
+        cap_b = cap or None
+        prev_as_of, prev = rotation.previous_picks(conn, mine[0][1], months, cap_b)
+        anchor = rotation.anchor_date(conn, months, cap_b)
         out.append({"min_cap_billions": cap or None, "label": label(cap), "months": months,
                     "as_of": mine[0][1], "run_at": run_at,
+                    "previous_as_of": prev_as_of,
+                    "changes": rotation.diff_picks(prev, [r[5] for r in mine]) if prev_as_of else None,
+                    "anchor": anchor,
+                    "next_rebalance": rotation.next_rebalance(anchor, months, today or date.today()).isoformat(),
                     "picks": [{"rank": r[4], "ticker": r[5], "return": r[6], "price": r[7], "market_cap": r[8]}
                               for r in mine]})
     return out

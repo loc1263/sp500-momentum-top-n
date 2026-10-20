@@ -117,3 +117,27 @@ def test_api_endpoints(tmp_path, cfg):
     finally:
         httpd.shutdown()
         httpd.server_close()
+
+
+def test_actual_includes_rotation(conn):
+    from datetime import date
+    conn.executemany("INSERT INTO actual_picks VALUES (?,?,?,?,?,?,?,?,?)", [
+        ("2024-08-29T10:00:00", "2024-08-29", 4, None, 1, "AAA", 0.9, 10.0, None),
+        ("2024-08-29T10:00:00", "2024-08-29", 4, None, 2, "OLD", 0.8, 10.0, None),
+        ("2024-08-30T10:00:00", "2024-08-30", 4, None, 1, "AAA", 0.9, 10.0, None),
+        ("2024-08-30T10:00:00", "2024-08-30", 4, None, 2, "NEW", 0.8, 10.0, None)])
+    conn.commit()
+    (item,) = _actual(conn, today=date(2024, 9, 5))
+    assert item["previous_as_of"] == "2024-08-29"
+    assert item["changes"] == {"entered": ["NEW"], "exited": ["OLD"], "kept": ["AAA"]}
+    assert item["anchor"] == "2024-08-29"
+    assert item["next_rebalance"] == "2024-12-01"
+
+
+def test_actual_without_previous_run_has_no_changes(conn):
+    from datetime import date
+    conn.execute("INSERT INTO actual_picks VALUES (?,?,?,?,?,?,?,?,?)",
+                 ("2024-08-30T10:00:00", "2024-08-30", 4, None, 1, "AAA", 0.9, 10.0, None))
+    conn.commit()
+    (item,) = _actual(conn, today=date(2024, 9, 5))
+    assert item["previous_as_of"] is None and item["changes"] is None

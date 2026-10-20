@@ -10,6 +10,7 @@
     d.setUTCMonth(d.getUTCMonth() - actual.months);
     return d.toISOString().slice(0, 10);
   });
+  const list = (tickers) => (tickers.length ? tickers.join(', ') : '-');
 </script>
 
 <div class="cards">
@@ -17,6 +18,13 @@
   <div class="card"><div class="k">Plazo</div><div class="v">{actual.months} meses</div></div>
   <div class="card"><div class="k">Acciones</div><div class="v">{actual.picks.length}</div></div>
   <div class="card"><div class="k">Peso por acción</div><div class="v">{share(weight)}</div></div>
+  {#if actual.next_rebalance}
+    <div class="card">
+      <div class="k">Próximo rebalanceo</div>
+      <div class="v">{actual.next_rebalance}</div>
+      <div class="h">cada {actual.months} meses desde la primera corrida guardada ({actual.anchor})</div>
+    </div>
+  {/if}
 </div>
 
 <h2>Top {actual.picks.length} de los últimos {actual.months} meses</h2>
@@ -28,6 +36,20 @@
   Ponderación igual; se rebalancea cada {actual.months} meses. Cap. aprox. = precio × acciones en circulación
   actuales, informativa.
 </p>
+{#if actual.changes}
+  <p class="changes">
+    <strong>Cambios vs. {actual.previous_as_of}:</strong>
+    {#if !actual.changes.entered.length && !actual.changes.exited.length}
+      ninguno, la selección se mantiene.
+    {:else}
+      entran <span class="pos">{list(actual.changes.entered)}</span> ·
+      salen <span class="neg">{list(actual.changes.exited)}</span> ·
+      se mantienen {list(actual.changes.kept)}
+    {/if}
+  </p>
+{:else if actual.previous_as_of === null}
+  <p class="muted">Primera corrida guardada: todavía no hay una selección anterior para comparar.</p>
+{/if}
 <div class="wrap">
   <table>
     <thead>

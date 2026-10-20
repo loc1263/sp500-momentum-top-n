@@ -114,7 +114,7 @@ def print_offsets(ctx: Context, terms: list[Term], min_cap_b: float | None) -> N
 
 
 def print_actual(top_n: int, months: int, min_cap_b: float | None, as_of, window: pd.DataFrame,
-                 headers: list[str], rows: list[list[str]], weight: float) -> None:
+                 headers: list[str], rows: list[list[str]], weight: float, notes: list[str] = ()) -> None:
     print_banner(f"TOP {top_n} S&P 500{universe.title(min_cap_b)} - últimos {months} meses", 70)
     print(f"Datos al cierre del {as_of} (ventana {window.index[0].date()} a {as_of}, {len(window)} ruedas)")
     if min_cap_b:
