@@ -10,10 +10,10 @@ import pandas as pd
 from . import errors as E
 from .config import DataSettings
 from .constituents import Constituents
-from .engine import BacktestResult, run_backtest
+from .engine import BacktestResult, Skipped, report_skipped, run_backtest
 from .logs import log
 from .shares import add_market_caps, ensure_shares
-from .universe import Universe
+from .universe import Universe, label
 
 
 @dataclass
@@ -97,10 +97,18 @@ def save_run(conn: sqlite3.Connection, params: dict, start_date: str, end_date: 
     return run_id
 
 
-def run_calendars(ctx: Context, months: int, universe: Universe | None = None) -> Term:
+def _where(ctx: Context, universe: Universe | None) -> str:
+    return f"{label(universe.min_cap_billions if universe else None)}, backtest {ctx.start_date.date()} a {ctx.end_date.date()}"
+
+
+def run_calendars(ctx: Context, months: int, universe: Universe | None = None,
+                  skipped: Skipped | None = None) -> Term:
     """Plazo de N meses con sus N calendarios posibles (arranque desfasado 0..N-1 meses).
-    Guarda cada corrida en SQLite; los calendarios que fallan se omiten."""
+    Guarda cada corrida en SQLite; los calendarios que fallan se omiten. Los rebalanceos omitidos se avisan juntos
+    al final (o, si el que llama pasa `skipped`, cuando él lo decida)."""
     min_cap_b = universe.min_cap_billions if universe else None
+    own = skipped is None
+    skipped = {} if own else skipped
     calendars = []
     for offset in range(months):
         start = ctx.start_date + pd.DateOffset(months=offset)
@@ -108,7 +116,7 @@ def run_calendars(ctx: Context, months: int, universe: Universe | None = None) -
                  months, offset, months - 1, start.date())
         try:
             result = run_backtest(ctx.constituents, ctx.prices, start, ctx.end_date, ctx.lookback_days(months),
-                                  f"{months}MS", ctx.initial_capital, ctx.top_n, universe)
+                                  f"{months}MS", ctx.initial_capital, ctx.top_n, universe, skipped)
         except Exception as e:
             log.warning(E.BKT_TERM_FAILED.msg("Plazo %d meses, desfase %d sin resultado: %s"), months, offset, e)
             continue
@@ -116,12 +124,17 @@ def run_calendars(ctx: Context, months: int, universe: Universe | None = None) -
                             "min_cap_billions": min_cap_b},
                  start.strftime("%Y-%m-%d"), ctx.end_date.strftime("%Y-%m-%d"), result)
         calendars.append(Calendar(**vars(result), offset=offset))
+    if own:
+        report_skipped(skipped, _where(ctx, universe))
     return Term(months, calendars)
 
 
 def run_terms(ctx: Context, universe: Universe | None = None, months: list[int] | None = None) -> list[Term]:
     """Corre cada plazo (por defecto los de [simulation] months) con todos sus calendarios."""
-    return [run_calendars(ctx, m, universe) for m in (months or ctx.terms)]
+    skipped: Skipped = {}  # todos los plazos y desfases juntos: un solo aviso por motivo
+    terms = [run_calendars(ctx, m, universe, skipped) for m in (months or ctx.terms)]
+    report_skipped(skipped, _where(ctx, universe))
+    return terms
 
 
 def attach_market_caps(ctx: Context, terms: list[Term], universe: Universe | None = None) -> None:

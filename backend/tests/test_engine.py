@@ -62,3 +62,29 @@ def test_add_market_caps():
     caps = history[0][0]["caps"]
     assert set(caps) == {"T00"}
     assert caps["T00"] == pytest.approx(prices.loc[:"2023-06-01", "T00"].iloc[-1] * 10)
+
+
+def test_run_backtest_skipped_collects_dates_instead_of_warning(caplog):
+    from top3 import errors as E
+    prices = make_prices()
+    skipped = {}
+
+    class FewEarly(FakeConstituents):
+        def on_date(self, t):
+            return self.tickers[:5] if pd.Timestamp(t) < pd.Timestamp("2024-01-01") else self.tickers
+
+    run_backtest(FewEarly(list(prices.columns)), prices, "2023-09-01", "2024-12-31", 63, "3MS", 1000, 3,
+                 skipped=skipped)
+    assert skipped == {E.BKT_FEW_TICKERS: {"2023-09-01", "2023-12-01"}}
+    assert not [r for r in caplog.records if r.levelname == "WARNING"]
+
+
+def test_run_backtest_without_collector_warns_per_date(caplog):
+    prices = make_prices()
+
+    class FewEarly(FakeConstituents):
+        def on_date(self, t):
+            return self.tickers[:5] if pd.Timestamp(t) < pd.Timestamp("2024-01-01") else self.tickers
+
+    run_backtest(FewEarly(list(prices.columns)), prices, "2023-09-01", "2024-12-31", 63, "3MS", 1000, 3)
+    assert len([r for r in caplog.records if "TOP-BKT-003" in r.getMessage()]) == 2

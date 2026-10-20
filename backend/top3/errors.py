@@ -69,7 +69,8 @@ BKT_EMPTY = _code("TOP-BKT-001", "error", "El backtest no generó ningún rebala
 BKT_NO_CONSTITUENTS = _code("TOP-BKT-002", "warning", "Sin constituyentes en la fecha de rebalanceo",
                             "Se omite ese rebalanceo.")
 BKT_FEW_TICKERS = _code("TOP-BKT-003", "warning", "Pocos tickers disponibles en la fecha de rebalanceo",
-                        "Se omite ese rebalanceo (menos de 10 candidatos). Frecuente en mega-cap con períodos largos.")
+                        "Se omiten esos rebalanceos (menos de 10 candidatos); se avisa una vez por universo y período con el "
+                        "rango de fechas. Frecuente en mega-cap con períodos largos.")
 BKT_SHORT_WINDOW = _code("TOP-BKT-004", "warning", "Ventana de precios insuficiente para rankear",
                          "Se omite ese rebalanceo.")
 BKT_NO_PRICES = _code("TOP-BKT-005", "warning", "Sin precios para mantener la selección durante el período",

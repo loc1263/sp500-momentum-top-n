@@ -22,6 +22,30 @@ class BacktestResult:
     cagr_pct: float
 
 
+Skipped = dict[E.Code, set[str]]  # rebalanceos omitidos, por motivo: fechas (se avisan juntos al final)
+
+_SKIP_TEXT = {E.BKT_NO_CONSTITUENTS: "Sin constituyentes", E.BKT_FEW_TICKERS: "Pocos tickers disponibles",
+              E.BKT_SHORT_WINDOW: "Ventana de precios insuficiente"}
+
+
+def _skip(code: E.Code, when: pd.Timestamp, skipped: Skipped | None, detail: str = "") -> None:
+    """Un rebalanceo que se omite. Con `skipped` solo se anota la fecha (quien lo pasó avisa una vez con
+    `report_skipped`); sin él se avisa en el momento."""
+    if skipped is None:
+        log.warning(code.msg("%s en %s%s, se omite"), _SKIP_TEXT[code], when.date(), detail)
+    else:
+        skipped.setdefault(code, set()).add(when.date().isoformat())
+        log.debug("%s en %s%s, se omite", _SKIP_TEXT[code], when.date(), detail)
+
+
+def report_skipped(skipped: Skipped, where: str) -> None:
+    """Un solo aviso por motivo con el rango de fechas omitidas (en vez de uno por fecha y corrida)."""
+    for code, dates in skipped.items():
+        ordered = sorted(dates)
+        log.warning(code.msg("%s en %d fechas de rebalanceo (de %s a %s), omitidas - %s"), _SKIP_TEXT[code],
+                    len(ordered), ordered[0], ordered[-1], where)
+
+
 def eligible_tickers(constituents_now: list[str], prices: pd.DataFrame, when: pd.Timestamp,
                      universe: Universe | None) -> list[str]:
     """Constituyentes con precios y, si hay universo, con capitalización suficiente."""
@@ -36,16 +60,15 @@ def eligible_tickers(constituents_now: list[str], prices: pd.DataFrame, when: pd
     return available
 
 
-def rank_returns(prices: pd.DataFrame, tickers: list[str], when: pd.Timestamp,
-                 lookback_days: int) -> pd.Series | None:
+def rank_returns(prices: pd.DataFrame, tickers: list[str], when: pd.Timestamp, lookback_days: int,
+                 skipped: Skipped | None = None) -> pd.Series | None:
     """Retorno de cada ticker en las últimas `lookback_days` ruedas hasta `when`, de mayor a menor.
     None si no hay ruedas suficientes."""
     window = prices.loc[:when, tickers].tail(lookback_days + 1).dropna(axis=1, how="any")
     log.debug("%s: ventana shape=%s (desde %s)", when.date(), window.shape,
               window.index[0].date() if len(window) else None)
     if len(window) < lookback_days + 1:
-        log.warning(E.BKT_SHORT_WINDOW.msg("%s: solo %d filas de precios (<%d), se omite"), when.date(), len(window),
-                    lookback_days + 1)
+        _skip(E.BKT_SHORT_WINDOW, when, skipped, f" (solo {len(window)} filas de precios, <{lookback_days + 1})")
         return None
     return (window.iloc[-1] / window.iloc[0] - 1).dropna().sort_values(ascending=False)
 
@@ -61,7 +84,8 @@ def hold_return(prices: pd.DataFrame, tickers: list[str], start: pd.Timestamp,
 
 
 def run_backtest(constituents: Constituents, prices: pd.DataFrame, start_date, end_date, lookback_days: int,
-                 freq: str, initial_capital: float, top_n: int, universe: Universe | None = None) -> BacktestResult:
+                 freq: str, initial_capital: float, top_n: int, universe: Universe | None = None,
+                 skipped: Skipped | None = None) -> BacktestResult:
     """Simula la estrategia entre `start_date` y `end_date`, rebalanceando según `freq` (p. ej. "4MS").
 
     Lanza RuntimeError si no hubo ningún rebalanceo (fechas fuera del histórico, universo demasiado chico...).
@@ -79,13 +103,13 @@ def run_backtest(constituents: Constituents, prices: pd.DataFrame, start_date, e
     for when in rebalance_dates:
         constituents_now = constituents.on_date(when)
         if not constituents_now:
-            log.warning(E.BKT_NO_CONSTITUENTS.msg("%s: sin constituyentes, se omite"), when.date())
+            _skip(E.BKT_NO_CONSTITUENTS, when, skipped)
             continue
         candidates = eligible_tickers(constituents_now, prices, when, universe)
         if len(candidates) < MIN_TICKERS:
-            log.warning(E.BKT_FEW_TICKERS.msg("Pocos tickers disponibles en %s"), when.date())
+            _skip(E.BKT_FEW_TICKERS, when, skipped)
             continue
-        returns = rank_returns(prices, candidates, when, lookback_days)
+        returns = rank_returns(prices, candidates, when, lookback_days, skipped)
         if returns is None:
             continue
 

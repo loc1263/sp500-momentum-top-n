@@ -41,7 +41,7 @@ Para buscar en el log: `grep TOP-BKT backend/log/top3_backtest.log`.
 | `TOP-DAT-004` | Error | No hay lista actual del S&P 500 | No se descargó ni existe en SQLite. Corre con conexión a internet. |
 | `TOP-BKT-001` | Error | El backtest no generó ningún rebalanceo | Revisa las fechas, el histórico descargado y que el universo no sea demasiado chico. |
 | `TOP-BKT-002` | Aviso | Sin constituyentes en la fecha de rebalanceo | Se omite ese rebalanceo. |
-| `TOP-BKT-003` | Aviso | Pocos tickers disponibles en la fecha de rebalanceo | Se omite ese rebalanceo (menos de 10 candidatos). Frecuente en mega-cap con períodos largos. |
+| `TOP-BKT-003` | Aviso | Pocos tickers disponibles en la fecha de rebalanceo | Se omiten esos rebalanceos (menos de 10 candidatos); se avisa una vez por universo y período con el rango de fechas. Frecuente en mega-cap con períodos largos. |
 | `TOP-BKT-004` | Aviso | Ventana de precios insuficiente para rankear | Se omite ese rebalanceo. |
 | `TOP-BKT-005` | Aviso | Sin precios para mantener la selección durante el período | El retorno de ese período no se computa. |
 | `TOP-BKT-006` | Aviso | Un plazo/calendario de arranque no produjo resultado | Se omite ese calendario; el resto continúa. |

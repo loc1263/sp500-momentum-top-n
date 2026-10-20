@@ -55,3 +55,30 @@ def test_run_terms_covers_configured_months(ctx):
 def test_save_run_returns_id(conn):
     run_id = save_run(conn, {"a": 1}, "2024-01-01", "2024-09-01", calendar(0, 1100, 10.0))
     assert conn.execute("SELECT final_capital, cagr FROM runs WHERE id = ?", (run_id,)).fetchone() == (1100, 10.0)
+
+
+class FewEarly(FakeConstituents):
+    """Antes de 2024 solo 5 tickers en el índice (menos de los 10 mínimos): esos rebalanceos se omiten."""
+
+    def on_date(self, t):
+        return self.tickers[:5] if pd.Timestamp(t) < pd.Timestamp("2024-01-01") else self.tickers
+
+
+def test_skipped_rebalances_are_reported_in_a_single_warning(conn, cfg, settings, caplog):
+    prices = make_prices()
+    ctx = Context(conn, cfg, settings, FewEarly(list(prices.columns)), prices,
+                  pd.Timestamp("2023-06-01"), pd.Timestamp("2024-12-31"))
+    with caplog.at_level("DEBUG"):
+        run_terms(ctx, months=[3, 4])
+    warnings = [r.getMessage() for r in caplog.records if r.levelname == "WARNING" and "TOP-BKT-003" in r.getMessage()]
+    assert len(warnings) == 1  # y no uno por fecha, plazo y desfase
+    assert "Pocos tickers disponibles en " in warnings[0] and "fechas de rebalanceo (de 2023-06-01 a 2023-12-01)" in warnings[0]
+    assert "índice completo, backtest 2023-06-01 a 2024-12-31" in warnings[0]
+
+
+def test_run_calendars_alone_also_reports_once(conn, cfg, settings, caplog):
+    prices = make_prices()
+    ctx = Context(conn, cfg, settings, FewEarly(list(prices.columns)), prices,
+                  pd.Timestamp("2023-06-01"), pd.Timestamp("2024-12-31"))
+    run_calendars(ctx, 3)
+    assert len([r for r in caplog.records if "TOP-BKT-003" in r.getMessage()]) == 1
