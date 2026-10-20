@@ -74,3 +74,57 @@ def test_setup_logging_captures_python_warnings(tmp_path):
         for h in list(log.handlers):
             h.close()
         log.handlers.clear()
+
+
+def test_console_colors_warnings_yellow_and_errors_red(monkeypatch):
+    import logging
+    from top3 import logs
+    monkeypatch.setattr(logs, "stderr_color", lambda: True)
+    fmt = logs.ConsoleFormatter("[%(levelname)s] %(message)s")
+
+    def render(level):
+        return fmt.format(logging.LogRecord("t", level, __file__, 1, "msg", None, None))
+
+    assert render(logging.INFO) == "[INFO] msg"
+    assert render(logging.WARNING) == f"{logs.YELLOW}[WARNING] msg{logs.RESET}"
+    assert render(logging.ERROR) == f"{logs.RED}[ERROR] msg{logs.RESET}"
+    assert render(logging.CRITICAL).startswith(logs.RED)
+
+
+def test_no_color_when_not_a_terminal(monkeypatch):
+    import logging
+    from top3 import logs
+    monkeypatch.setattr(logs, "stderr_color", lambda: False)
+    assert logs.paint("x", logging.ERROR) == "x"
+
+
+def test_stderr_color_respects_no_color(monkeypatch):
+    import sys
+    from top3 import logs
+    monkeypatch.setattr(sys.stderr, "isatty", lambda: True, raising=False)
+    monkeypatch.setenv("NO_COLOR", "1")
+    assert logs.stderr_color() is False
+
+
+def test_run_cli_logs_systemexit_message_as_error(tmp_path):
+    import pytest
+    from top3 import logs
+    logs.setup_logging("c.log", str(tmp_path))
+    try:
+        def boom():
+            raise SystemExit("TOP-BKT-001: sin rebalanceos")
+        with pytest.raises(SystemExit) as e:
+            logs.run_cli(boom)
+        assert e.value.code == 1
+        for h in logs.log.handlers:
+            h.flush()
+        assert "[ERROR] TOP-BKT-001: sin rebalanceos" in (tmp_path / "c.log").read_text(encoding="utf-8")
+        with pytest.raises(SystemExit) as e:  # los códigos numéricos pasan tal cual
+            logs.run_cli(lambda: (_ for _ in ()).throw(SystemExit(2)))
+        assert e.value.code == 2
+    finally:
+        import logging
+        logging.captureWarnings(False)
+        for h in list(logs.log.handlers):
+            h.close()
+        logs.log.handlers.clear()

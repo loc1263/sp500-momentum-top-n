@@ -8,7 +8,7 @@ import argparse
 from top3.actual import run_actual
 from top3.config import load_config
 from top3.console import configure_console
-from top3.logs import log_config, setup_logging
+from top3.logs import log_config, run_cli, setup_logging
 from top3.report_data import export_report
 
 
@@ -45,4 +45,4 @@ def main(argv=None) -> None:
 
 
 if __name__ == "__main__":
-    main()
+    run_cli(main)

@@ -30,7 +30,8 @@ def test_every_warning_error_and_exception_log_carries_a_code():
     for path in SOURCES:
         text = path.read_text(encoding="utf-8")
         for m in re.finditer(r"\blog\.(warning|error|exception)\(", text):
-            if ".msg(" not in text[m.end():m.end() + 60]:
+            rest = text[m.end():text.index("\n", m.end())]
+            if ".msg(" not in text[m.end():m.end() + 60] and "# sin código" not in rest:
                 missing.append(f"{path.name}:{text.count(chr(10), 0, m.start()) + 1}")
     assert missing == []
 

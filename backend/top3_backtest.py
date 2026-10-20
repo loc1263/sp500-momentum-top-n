@@ -15,7 +15,7 @@ from top3.config import DataSettings, load_config
 from top3.console import configure_console
 from top3.constituents import Constituents, ensure_constituents
 from top3.db import maybe_prune_runs, open_db
-from top3.logs import log, log_config, setup_logging
+from top3.logs import log, log_config, run_cli, setup_logging
 from top3.prices import ensure_prices, load_prices
 from top3.report_data import export_report
 from top3.universe import label
@@ -142,4 +142,4 @@ def main(argv=None) -> None:
 
 
 if __name__ == "__main__":
-    main()
+    run_cli(main)

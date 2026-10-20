@@ -11,12 +11,14 @@ Períodos, plazos y universos salen de config.toml ([backtest] periods_years, [s
 [universe] sweep_min_cap_billions).
 """
 import argparse
+import logging
 import subprocess
 import sys
 import time
 from pathlib import Path
 
 from top3.config import load_config
+from top3.logs import paint
 
 HERE = Path(__file__).resolve().parent
 
@@ -69,7 +71,8 @@ def main():
         rc = subprocess.run(cmd, cwd=HERE).returncode
         results.append((name, rc, time.time() - t0))
         if rc:
-            print(f"\nFALLÓ el paso «{name}» (código {rc}). Se corta el pipeline.", file=sys.stderr)
+            print(paint(f"\nFALLÓ el paso «{name}» (código {rc}). Se corta el pipeline.", logging.ERROR),
+                  file=sys.stderr)
             break
 
     print("\n" + "=" * 78)
