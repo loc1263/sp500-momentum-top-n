@@ -38,6 +38,7 @@ docs/          # documentación
 | `yahoo.py` | Clasifica los errores que yfinance escribe en su logger y captura los tickers rechazados para reintentarlos |
 | `universe.py` | Universos por capitalización: filtro y etiquetas |
 | `engine.py` | Motor del backtest (`run_backtest`) |
+| `pricematrix.py` | Precios como matriz numpy con NaN acumulados: consultas de ventana y de retorno sin copiar historia (el backtest hace miles); el motor las usa en lugar de `prices.loc[...]` |
 | `analysis.py` | Calendarios de arranque, resumen por plazo y guardado de corridas |
 | `tables.py` | Tablas de resultados (texto) que comparten la consola y el HTML |
 | `console.py`, `html_report.py` | Salida por consola y reportes HTML |

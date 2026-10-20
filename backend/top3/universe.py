@@ -1,6 +1,7 @@
 """Universos por capitalización: filtro y etiquetas (None o 0 = índice completo)."""
 from dataclasses import dataclass
 
+import numpy as np
 import pandas as pd
 
 LARGE_CAP_B = 10    # umbral habitual de large-cap (miles de millones de US$)
@@ -22,9 +23,11 @@ class Universe:
 
     def select(self, tickers: list[str], last_prices: pd.Series) -> list[str]:
         """Tickers con acciones conocidas y capitalización >= el umbral, dado el último precio de cada uno."""
-        return [t for t in tickers
-                if t in self.shares and pd.notna(last_prices[t])
-                and last_prices[t] * self.shares[t] >= self.min_cap_usd]
+        price = last_prices.reindex(tickers).to_numpy(dtype=float)
+        shares = np.array([self.shares.get(t, np.nan) for t in tickers], dtype=float)
+        with np.errstate(invalid="ignore"):  # NaN (sin precio o sin acciones) nunca cumple el umbral
+            ok = price * shares >= self.min_cap_usd
+        return [t for t, keep in zip(tickers, ok) if keep]
 
 
 def label(min_cap_b: float | None) -> str:

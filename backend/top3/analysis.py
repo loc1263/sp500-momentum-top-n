@@ -13,6 +13,7 @@ from .constituents import Constituents
 from .engine import BacktestResult, Skipped, report_skipped, run_backtest
 from .logs import log
 from .shares import add_market_caps, ensure_shares
+from .pricematrix import PriceMatrix
 from .universe import Universe, label
 
 
@@ -30,6 +31,14 @@ class Context:
     use_cache: bool = True
     file_suffix: str = ""   # se agrega al nombre de los reportes HTML (p. ej. "_5y")
     known_shares: dict[str, float] = field(default_factory=dict)  # acciones ya bajadas en esta corrida
+    _matrix: PriceMatrix | None = field(default=None, repr=False)
+
+    @property
+    def matrix(self) -> PriceMatrix:
+        """Los precios como matriz numpy, armada una sola vez y compartida por todas las simulaciones."""
+        if self._matrix is None:
+            self._matrix = PriceMatrix(self.prices)
+        return self._matrix
 
     @property
     def initial_capital(self) -> float:
@@ -116,7 +125,7 @@ def run_calendars(ctx: Context, months: int, universe: Universe | None = None,
         log.info("=== Plazo %d meses, desfase %d/%d (arranque desde %s) ===",
                  months, offset, months - 1, start.date())
         try:
-            result = run_backtest(ctx.constituents, ctx.prices, start, ctx.end_date, ctx.lookback_days(months),
+            result = run_backtest(ctx.constituents, ctx.matrix, start, ctx.end_date, ctx.lookback_days(months),
                                   f"{months}MS", ctx.initial_capital, ctx.top_n, universe, skipped)
         except Exception as e:
             log.warning(E.BKT_TERM_FAILED.msg("Plazo %d meses, desfase %d sin resultado: %s"), months, offset, e)

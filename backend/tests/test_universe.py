@@ -43,3 +43,21 @@ def test_universe_builder_shares_what_it_downloads_with_the_run(conn, settings, 
     assert known == {"A": 1e9, "B": 1e9} and calls == [{}]
     assert builder(200).min_cap_billions == 200 and len(calls) == 1      # no vuelve a pedir
     assert builder(0) is None
+
+
+def test_select_matches_the_element_by_element_definition():
+    import numpy as np
+    rng = np.random.default_rng(3)
+    tickers = [f"T{i:03d}" for i in range(300)]
+    shares = {t: float(rng.integers(1, 10) * 1e8) for t in tickers[:250]}        # 50 sin acciones conocidas
+    shares["T000"] = float("nan")
+    prices = pd.Series(rng.uniform(1, 500, 300), index=tickers)
+    prices[rng.choice(tickers, 30, replace=False)] = np.nan                       # 30 sin precio
+    for cap in (0.5, 10, 100):
+        u = Universe(shares, cap)
+        expected = [t for t in tickers if t in shares and pd.notna(prices[t]) and prices[t] * shares[t] >= u.min_cap_usd]
+        assert u.select(tickers, prices) == expected
+    assert u.select([], prices) == []
+    extra = prices.copy()
+    extra["OTRO"] = 1.0                                                           # etiquetas de más en los precios
+    assert Universe(shares, 10).select(tickers[:50], extra) == Universe(shares, 10).select(tickers[:50], prices)
