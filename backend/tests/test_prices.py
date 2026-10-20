@@ -21,7 +21,7 @@ def fetch(monkeypatch):
         def __init__(self):
             self.calls = []
 
-        def __call__(self, tickers, start, end, batch_size):
+        def __call__(self, tickers, start, end, batch_size, gone=None):
             self.calls.append((sorted(tickers), start, end))
             d = self.data
             return d[d["ticker"].isin(tickers) & (d["date"] >= start)].reset_index(drop=True), []
@@ -177,3 +177,70 @@ def test_delisted_tickers_are_not_retried(monkeypatch):
         (_frame(AAA=[1.0, 2.0], OLD=[float("nan")] * 2), {"OLD": "possibly delisted; no timezone found"})], monkeypatch)
     _, sin_datos = prices_module.fetch_prices(["AAA", "OLD"], "2024-01-01", "2024-02-01", 100)
     assert len(calls) == 1 and sin_datos == ["OLD"]
+
+
+def _set_checked(conn, ticker, days_ago):
+    checked = (date.today() - timedelta(days=days_ago)).isoformat()
+    conn.execute("INSERT OR REPLACE INTO no_data_tickers (ticker, checked) VALUES (?, ?)", (ticker, checked))
+    conn.commit()
+
+
+def test_fetch_prices_reports_tickers_yahoo_says_are_gone_but_not_rate_limited_ones(monkeypatch):
+    monkeypatch.setattr(prices_module.time, "sleep", lambda s: None)
+    nan = [float("nan")] * 2
+    frame = _frame(AAA=[1.0, 2.0], OLD=nan, LIMITED=nan, ODD=nan)
+    errors = {"OLD": "possibly delisted; no timezone found", "LIMITED": "Too Many Requests. Rate limited.",
+              "ODD": "algo inesperado"}
+    still = (_frame(LIMITED=nan), {"LIMITED": "Too Many Requests. Rate limited."})
+    _yahoo_download([(frame, errors), still, still, still], monkeypatch)
+    gone = set()
+    _, sin_datos = prices_module.fetch_prices(["AAA", "OLD", "LIMITED", "ODD"], "2024-01-01", "2024-02-01", 100,
+                                              retries=3, wait=0, gone=gone)
+    assert sorted(sin_datos) == ["LIMITED", "ODD", "OLD"]
+    assert gone == {"OLD"}                                   # solo lo que Yahoo dice que no existe
+
+
+def test_known_no_data_respects_the_ttl(conn):
+    _set_checked(conn, "FRESH", 5)
+    _set_checked(conn, "STALE", 40)
+    assert prices_module.known_no_data(conn, 30) == {"FRESH"}
+    assert prices_module.known_no_data(conn, 0) == set()      # 0 = pedir siempre
+
+
+def test_remember_no_data_adds_gone_tickers_and_forgets_those_with_data_again(conn):
+    _set_checked(conn, "BACK", 40)
+    prices_module.remember_no_data(conn, {"OLD"}, long([("BACK", "2024-01-02", 1.0)]))
+    assert {r[0] for r in conn.execute("SELECT ticker FROM no_data_tickers")} == {"OLD"}
+
+
+def test_full_download_skips_known_gone_tickers_and_records_new_ones(conn, settings, monkeypatch):
+    _set_checked(conn, "OLD1", 3)
+    asked = []
+
+    def fake(tickers, start, end, batch_size, gone=None):
+        asked.append(sorted(tickers))
+        gone.add("OLD2")
+        return long([("AAA", "2024-01-02", 1.0)]), ["OLD2"]
+
+    monkeypatch.setattr(prices_module, "fetch_prices", fake)
+    prices_module.download_prices(conn, ["AAA", "OLD1", "OLD2"], "2024-01-01", "2024-02-01", settings)
+    assert asked == [["AAA", "OLD2"]]                         # OLD1 ya se sabía: no se pide
+    assert prices_module.known_no_data(conn, 30) == {"OLD1", "OLD2"}
+
+
+def test_incremental_update_does_not_ask_again_for_known_gone_new_tickers(conn, fetch, settings):
+    seed(conn, [("A", "2024-03-04", 11.0)])
+    _set_checked(conn, "OLD", 3)
+    fetch.data = long([("A", "2024-03-04", 11.0), ("A", "2024-03-05", 12.0)])
+    ensure_prices(conn, ["A", "OLD"], "2024-01-02", "2024-03-06", True, settings)
+    assert all("OLD" not in tickers for tickers, _, _ in fetch.calls)
+
+
+def test_a_known_gone_ticker_is_asked_again_after_the_ttl(conn, fetch, settings):
+    seed(conn, [("A", "2024-03-04", 11.0)])
+    _set_checked(conn, "OLD", settings.no_data_ttl_days + 5)
+    fetch.data = long([("A", "2024-03-04", 11.0), ("OLD", "2024-03-05", 3.0)])
+    ensure_prices(conn, ["A", "OLD"], "2024-01-02", "2024-03-06", True, settings)
+    assert any("OLD" in tickers for tickers, _, _ in fetch.calls)
+    assert ("OLD", "2024-03-05") in stored(conn)
+    assert prices_module.known_no_data(conn, 30) == set()    # y como ahora tiene datos, se olvida

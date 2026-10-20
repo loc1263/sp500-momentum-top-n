@@ -1,7 +1,7 @@
 """Precios ajustados: descarga completa e incremental a SQLite y carga como matriz fecha x ticker."""
 import sqlite3
 import time
-from datetime import date
+from datetime import date, timedelta
 
 import pandas as pd
 import yfinance as yf
@@ -25,15 +25,18 @@ def _download(batch: list[str], start: str, end: str) -> pd.DataFrame:
     return data
 
 
-def _download_batch(batch: list[str], start: str, end: str, retries: int, wait: float) -> pd.DataFrame:
+def _download_batch(batch: list[str], start: str, end: str, retries: int,
+                    wait: float) -> tuple[pd.DataFrame, set[str]]:
     """Descarga un lote; los tickers que Yahoo rechazó por rate limit se piden de nuevo tras esperar
-    (`wait` segundos, el doble en cada reintento). Si siguen rechazados quedan sin datos y se avisa como error."""
+    (`wait` segundos, el doble en cada reintento). Si siguen rechazados quedan sin datos y se avisa como error.
+    Devuelve (precios, tickers que Yahoo dice que no existen o están dados de baja)."""
     with yahoo.capture_errors() as errors:
         data = _download(batch, start, end)
+    absent = {t for t, message in errors.items() if yahoo.is_expected_absence(message)}
     for attempt in range(1, retries + 1):
         limited = [t for t, message in errors.items() if yahoo.is_rate_limit(message)]
         if not limited:
-            return data
+            return data, absent
         delay = wait * 2 ** (attempt - 1)
         log.warning(E.NET_RATE_RETRY.msg("Yahoo limitó %d tickers (%s); reintento %d/%d en %g s"),
                     len(limited), ", ".join(limited[:8]) + (" ..." if len(limited) > 8 else ""), attempt, retries,
@@ -46,18 +49,22 @@ def _download_batch(batch: list[str], start: str, end: str, retries: int, wait: 
     if limited:
         log.error(E.NET_RATE_LIMIT.msg("Yahoo siguió limitando %d tickers tras %d reintentos; quedan sin datos: %s"),
                   len(limited), retries, ", ".join(limited))
-    return data
+    return data, absent
 
 
 def fetch_prices(tickers: list[str], start: str, end: str, batch_size: int, retries: int = RATE_LIMIT_RETRIES,
-                 wait: float = RATE_LIMIT_WAIT) -> tuple[pd.DataFrame, list[str]]:
-    """Baja precios ajustados en lotes. Devuelve (DataFrame largo ticker/date/close, tickers sin datos)."""
+                 wait: float = RATE_LIMIT_WAIT, gone: set[str] | None = None) -> tuple[pd.DataFrame, list[str]]:
+    """Baja precios ajustados en lotes. Devuelve (DataFrame largo ticker/date/close, tickers sin datos).
+    Si se pasa `gone`, se le agregan los tickers sin datos que Yahoo dijo que no existen o están dados de baja
+    (a diferencia de los que fallaron por rate limit u otro motivo, que pueden tener datos más tarde)."""
     frames, sin_datos = [], []
     for i in range(0, len(tickers), batch_size):
         batch = tickers[i:i + batch_size]
-        data = _download_batch(batch, start, end, retries, wait)
+        data, absent = _download_batch(batch, start, end, retries, wait)
         got = set(data.columns[data.notna().any()])
         sin_datos.extend(t for t in batch if t not in got)
+        if gone is not None:
+            gone.update(t for t in absent if t not in got)
         long = (data.rename_axis("date").reset_index()
                 .melt(id_vars="date", var_name="ticker", value_name="close").dropna())
         long["date"] = pd.to_datetime(long["date"]).dt.strftime("%Y-%m-%d")
@@ -74,20 +81,43 @@ def _save_prices(conn: sqlite3.Connection, long: pd.DataFrame) -> None:
     conn.commit()
 
 
+def known_no_data(conn: sqlite3.Connection, ttl_days: int) -> set[str]:
+    """Tickers que Yahoo dijo hace menos de `ttl_days` días que no existen o están dados de baja."""
+    if ttl_days <= 0:
+        return set()
+    cutoff = (date.today() - timedelta(days=ttl_days)).isoformat()
+    return {r[0] for r in conn.execute("SELECT ticker FROM no_data_tickers WHERE checked > ?", (cutoff,))}
+
+
+def remember_no_data(conn: sqlite3.Connection, gone: set[str], long: pd.DataFrame) -> None:
+    """Anota los tickers sin datos de esta descarga y olvida los que ahora sí tienen."""
+    today = date.today().isoformat()
+    conn.executemany("INSERT OR REPLACE INTO no_data_tickers (ticker, checked) VALUES (?, ?)",
+                     [(t, today) for t in sorted(gone)])
+    conn.executemany("DELETE FROM no_data_tickers WHERE ticker = ?", [(t,) for t in long["ticker"].unique()])
+
+
 def download_prices(conn: sqlite3.Connection, tickers: list[str], start: str, end: str,
                     settings: DataSettings) -> None:
     """Descarga completa: baja precios ajustados de todos los tickers y reemplaza lo guardado."""
+    skip = known_no_data(conn, settings.no_data_ttl_days) & set(tickers)
+    if skip:
+        log.info("Precios: %d tickers sin datos en Yahoo (consultados hace menos de %d días) no se vuelven a pedir",
+                 len(skip), settings.no_data_ttl_days)
+        tickers = [t for t in tickers if t not in skip]
     log.info("Descargando precios de %d tickers (%s a %s) en lotes de %d...",
              len(tickers), start, end, settings.batch_size)
     conn.execute("DELETE FROM prices")
     conn.commit()
-    long, sin_datos = fetch_prices(tickers, start, end, settings.batch_size)
+    gone: set[str] = set()
+    long, sin_datos = fetch_prices(tickers, start, end, settings.batch_size, gone=gone)
     _save_prices(conn, long)
+    remember_no_data(conn, gone, long)
     set_meta(conn, "prices_fetched", date.today().isoformat())
     set_meta(conn, "prices_start", start)
     set_meta(conn, "prices_end", end)
     conn.commit()
-    log.info("Precios guardados: %d filas | tickers sin datos: %d", len(long), len(sin_datos))
+    log.info("Precios guardados: %d filas | tickers sin datos: %d", len(long), len(sin_datos) + len(skip))
     log.debug("Tickers sin datos (delisted/renombrados): %s", sorted(sin_datos))
 
 
@@ -105,7 +135,8 @@ def update_prices(conn: sqlite3.Connection, tickers: list[str], start: str, end:
     last = dict(conn.execute("SELECT ticker, MAX(date) FROM prices GROUP BY ticker").fetchall())
     newest = pd.to_datetime(max(last.values()))
     stale_before = (newest - pd.Timedelta(days=settings.stale_days)).strftime("%Y-%m-%d")
-    new = [t for t in tickers if t not in last]
+    skip = known_no_data(conn, settings.no_data_ttl_days)
+    new = [t for t in tickers if t not in last and t not in skip]
     active = [t for t in tickers if t in last and last[t] >= stale_before]
     log.info("Actualización incremental de precios: %d tickers nuevos, %d a actualizar, %d sin cotizar",
              len(new), len(active), len(tickers) - len(new) - len(active))
@@ -126,9 +157,11 @@ def update_prices(conn: sqlite3.Connection, tickers: list[str], start: str, end:
         log.debug("Ajuste cambiado: %s | sin solape: %s", changed, no_overlap)
         _save_prices(conn, fresh[~fresh["ticker"].isin(changed + no_overlap)])
     if refetch:
-        long, sin_datos = fetch_prices(refetch, start, end, settings.batch_size)
+        gone: set[str] = set()
+        long, sin_datos = fetch_prices(refetch, start, end, settings.batch_size, gone=gone)
         conn.executemany("DELETE FROM prices WHERE ticker = ?", [(t,) for t in refetch])
         _save_prices(conn, long)
+        remember_no_data(conn, gone, long)
         log.debug("Tickers sin datos (delisted/renombrados): %s", sorted(sin_datos))
     set_meta(conn, "prices_fetched", date.today().isoformat())
     set_meta(conn, "prices_end", end)

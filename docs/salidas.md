@@ -37,6 +37,7 @@ errores** agrupado por código, con cuántas veces ocurrió, un ejemplo y qué h
 | `index_changes` | Altas y bajas de Wikipedia |
 | `constituents_current` | Lista actual de Wikipedia |
 | `prices` | Precios ajustados por ticker y fecha |
+| `no_data_tickers` | Tickers que Yahoo dijo que no existen o están dados de baja y la fecha de consulta (no se vuelven a pedir durante `no_data_ttl_days`) |
 | `shares` | Acciones en circulación actuales (para la capitalización aproximada) |
 | `meta` | Fechas de descarga y rango de precios (control del caché) |
 | `runs`, `selections`, `equity` | Cada corrida: parámetros, selecciones y curva de capital |

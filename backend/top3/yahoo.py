@@ -12,6 +12,12 @@ _EXPECTED = ("possibly delisted", "no price data", "no data found", "no timezone
              "http error 404")
 
 
+def is_expected_absence(text: str) -> bool:
+    """True si el mensaje de yfinance dice que el ticker no existe o no tiene datos (dado de baja, renombrado)."""
+    lower = text.lower()
+    return any(s in lower for s in _EXPECTED)
+
+
 def is_rate_limit(text: str) -> bool:
     """True si el mensaje de yfinance indica que Yahoo limitó las solicitudes."""
     lower = text.lower()
@@ -34,7 +40,7 @@ def triage(record: logging.LogRecord) -> bool:
         level, code = logging.DEBUG, None
     elif is_rate_limit(text):
         level, code = logging.ERROR, E.NET_RATE_LIMIT
-    elif any(s in text.lower() for s in _EXPECTED):
+    elif is_expected_absence(text):
         level, code = logging.DEBUG, None
     else:
         level, code = logging.WARNING, E.NET_YAHOO

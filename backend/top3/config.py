@@ -20,6 +20,7 @@ DEFAULT_CONFIG: dict[str, dict] = {
         "price_drift_tolerance": 0.0001,
         "runs_keep_days": 7,
         "shares_ttl_days": 30,
+        "no_data_ttl_days": 30,
     },
     "backtest": {
         "start_date": "",
@@ -102,6 +103,7 @@ class DataSettings:
     stale_days: int
     price_drift_tolerance: float
     shares_ttl_days: int = 30
+    no_data_ttl_days: int = 30
 
     @classmethod
     def from_config(cls, cfg: dict) -> "DataSettings":
@@ -119,4 +121,5 @@ class DataSettings:
             stale_days=int(d["stale_days"]),
             price_drift_tolerance=float(d["price_drift_tolerance"]),
             shares_ttl_days=int(d["shares_ttl_days"]),
+            no_data_ttl_days=int(d["no_data_ttl_days"]),
         )

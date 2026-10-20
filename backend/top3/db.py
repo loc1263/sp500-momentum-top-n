@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS prices (
     PRIMARY KEY (ticker, date)
 );
 CREATE TABLE IF NOT EXISTS shares (ticker TEXT PRIMARY KEY, shares REAL, fetched TEXT);
+CREATE TABLE IF NOT EXISTS no_data_tickers (ticker TEXT PRIMARY KEY, checked TEXT);
 CREATE TABLE IF NOT EXISTS runs (
     id INTEGER PRIMARY KEY AUTOINCREMENT, run_at TEXT, params TEXT,
     start_date TEXT, end_date TEXT,
