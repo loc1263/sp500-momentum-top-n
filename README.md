@@ -1,4 +1,4 @@
-# Modelo Octubre - Top N del S&P 500
+# sp500-momentum-top-n - Top N del S&P 500
 
 Estrategia de momentum: cada N meses se compran, con ponderación igual, las N acciones del S&P 500
 que más subieron en los últimos N meses. Este proyecto la prueba con datos históricos (backtest),
