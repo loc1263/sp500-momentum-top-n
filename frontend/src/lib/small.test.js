@@ -1,8 +1,9 @@
-import { render, screen } from '@testing-library/svelte';
+import { fireEvent, render, screen } from '@testing-library/svelte';
 import { describe, expect, it } from 'vitest';
 import Range from './Range.svelte';
 import TickerLink from './TickerLink.svelte';
 import Glossary from './Glossary.svelte';
+import Bunny from './Bunny.svelte';
 
 describe('TickerLink', () => {
   it('enlaza a stockanalysis.com en minúsculas', () => {
@@ -51,5 +52,14 @@ describe('Glossary', () => {
     render(Glossary);
     expect(screen.getByText('Rendimiento anual (CAGR)')).toBeInTheDocument();
     expect(screen.getByText('Calendario base')).toBeInTheDocument();
+  });
+});
+
+describe('Bunny', () => {
+  it('saluda con un letrero al hacerle clic', async () => {
+    render(Bunny);
+    expect(screen.queryByText(/Hola/)).not.toBeInTheDocument();
+    await fireEvent.click(screen.getByRole('button', { name: 'Conejito' }));
+    expect(screen.getByRole('status')).toHaveTextContent('¡Hola!');
   });
 });

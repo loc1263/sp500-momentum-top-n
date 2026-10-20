@@ -4,6 +4,7 @@
   import SweepView from './lib/SweepView.svelte';
   import EtfView from './lib/EtfView.svelte';
   import Glossary from './lib/Glossary.svelte';
+  import Bunny from './lib/Bunny.svelte';
 
   const tabs = [
     { id: 'actual', label: 'Top actual' },
@@ -151,6 +152,8 @@
     </footer>
   {/if}
 </main>
+
+<Bunny />
 
 <style>
   main { max-width: 1280px; margin: 0 auto; padding: 24px 16px 48px; }
