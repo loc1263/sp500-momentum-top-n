@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Datos generados por el backend (se recrean con run_pipeline.py)
+backend/data/
+backend/log/
+backend/output/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/public/data/report.json
+
+# Editor / sistema
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
