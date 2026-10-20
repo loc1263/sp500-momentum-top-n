@@ -8,7 +8,8 @@ from contextlib import contextmanager
 from . import errors as E
 
 _RATE_LIMIT = ("rate limit", "too many requests", "yfratelimiterror")
-_EXPECTED = ("possibly delisted", "no price data", "no data found", "no timezone found")
+_EXPECTED = ("possibly delisted", "no price data", "no data found", "no timezone found", "quote not found",
+             "http error 404")
 
 
 def is_rate_limit(text: str) -> bool:

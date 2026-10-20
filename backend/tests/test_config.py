@@ -216,6 +216,7 @@ def test_yfinance_errors_are_triaged_into_the_log(tmp_path, capsys, monkeypatch)
             yf_log.error("\n1 Failed download:")                                    # encabezado: DEBUG
             yf_log.error("['ADM']: YFRateLimitError('Too Many Requests. Rate limited.')")  # la que cuenta
             yf_log.error("['ATVI', 'CELG']: possibly delisted; no timezone found")  # esperable: DEBUG
+            yf_log.error('HTTP Error 404: {"quoteSummary":{"error":{"description":"Quote not found for symbol: BCR"}}}')
             yf_log.error("['XYZ']: algo raro")                                      # otro error: aviso
         logs.run_cli(main)
         for h in logs.log.handlers:
@@ -225,5 +226,5 @@ def test_yfinance_errors_are_triaged_into_the_log(tmp_path, capsys, monkeypatch)
         _close_logging()
     err = capsys.readouterr().err
     assert "[ERROR] TOP-NET-005: ['ADM']" in err and "[WARNING] TOP-NET-007: ['XYZ']" in err
-    assert "delisted" not in err and "Failed download" not in err        # no ensucian la consola
+    assert "delisted" not in err and "Failed download" not in err and "BCR" not in err       # no ensucian la consola
     assert "RESUMEN DE AVISOS Y ERRORES: 1 errores, 1 avisos" in err     # y no se cuentan de más

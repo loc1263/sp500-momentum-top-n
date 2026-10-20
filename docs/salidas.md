@@ -46,9 +46,11 @@ errores** agrupado por código, con cuántas veces ocurrió, un ejemplo y qué h
 Cada backtest guarda cientos de corridas (parámetros, selecciones y curva de capital) y el informe solo usa la última de
 cada combinación del día más reciente. Para que la base no crezca sin límite:
 
-- Al terminar `top3_backtest.py` (y por lo tanto `run_pipeline.py`) se borran, **una vez por día**, las corridas de
-  más de `[data] runs_keep_days` días (contados desde el último día con corridas) y las repetidas del mismo día con
-  los mismos parámetros. Después se compacta el archivo.
+- Al terminar `top3_backtest.py` (y por lo tanto `run_pipeline.py`) se borran las corridas de más de
+  `[data] runs_keep_days` días (contados desde el último día con corridas) y las que otra corrida del mismo día
+  reemplaza: las que tienen el mismo universo, período, plazo y desfase, que es lo que identifica una corrida en el
+  informe. Es rápido, así que se hace en cada ejecución. Compactar el archivo (`VACUUM`) es lo lento: se hace como
+  mucho una vez por día.
 - Para forzarlo a mano: `python prune_db.py` (o `--keep-days N`).
 - No se toca `actual_picks` (historial del Top actual, que usa la comparación con la corrida anterior) ni los precios.
 

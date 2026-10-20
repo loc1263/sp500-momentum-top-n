@@ -6,7 +6,7 @@ from datetime import date, datetime
 from pathlib import Path
 
 from . import rotation
-from .db import open_db
+from .db import open_db, run_key
 from .logs import log
 from .universe import label
 
@@ -22,12 +22,9 @@ def _latest_runs(conn: sqlite3.Connection) -> tuple[str | None, dict]:
     latest = {}
     for row in rows:
         params = json.loads(row[1])
-        if "sweep_months" not in params:
-            continue
-        years = float(params.get("backtest", {}).get("backtest_years", 5))
-        key = (float(params.get("min_cap_billions") or 0), years, int(params["sweep_months"]),
-               int(params.get("offset_months", 0)))
-        latest[key] = row
+        key = run_key(params)
+        if key is not None:
+            latest[key] = row
     return last_day, latest
 
 
