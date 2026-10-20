@@ -128,7 +128,8 @@ def print_etf(as_of: str, horizons: list[int], top_n: int, ranked: int, headers:
 
 
 def print_actual(top_n: int, months: int, min_cap_b: float | None, as_of, window: pd.DataFrame,
-                 headers: list[str], rows: list[list[str]], weight: float, notes: list[str] = ()) -> None:
+                 headers: list[str], rows: list[list[str]], weight: float, notes: list[str] = (),
+                 alternates: list[list[str]] = ()) -> None:
     print_banner(f"TOP {top_n} S&P 500{universe.title(min_cap_b)} - últimos {months} meses", 70)
     print(f"Datos al cierre del {as_of} (ventana {window.index[0].date()} a {as_of}, {len(window)} ruedas)")
     if min_cap_b:
@@ -136,3 +137,6 @@ def print_actual(top_n: int, months: int, min_cap_b: float | None, as_of, window
     print()
     print_table(headers, rows)
     print(f"\n→ Ponderación igual: {weight:.1f}% cada una. Se rebalancea cada {months} meses.")
+    if alternates:
+        print("\nSuplentes (las que siguen, por si querés cambiar alguna del top):")
+        print_table(headers, alternates)

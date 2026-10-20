@@ -65,8 +65,8 @@ def get_prices(conn: sqlite3.Connection, tickers: list[str], start: str, end: st
 
 
 def compute_top(prices: pd.DataFrame, months: int, top_n: int, trading_days_per_month: int,
-                universe: Universe | None = None) -> tuple[pd.Series, pd.DataFrame]:
-    """Los `top_n` tickers con mayor retorno en los últimos `months` meses y la ventana de precios usada."""
+                universe: Universe | None = None, extra: int = 0) -> tuple[pd.Series, pd.DataFrame]:
+    """Los `top_n` (+ `extra` suplentes) tickers con mayor retorno en los últimos `months` meses y la ventana usada."""
     lookback = months * trading_days_per_month
     prices = prices.dropna(axis=1, how="all")
     if universe is not None:
@@ -88,7 +88,7 @@ def compute_top(prices: pd.DataFrame, months: int, top_n: int, trading_days_per_
     log.debug("Ventana: %s a %s, %d ruedas, %d tickers completos",
               window.index[0].date(), window.index[-1].date(), len(window), window.shape[1])
     log.debug("Top 10 retornos:\n%s", returns.head(10).round(4).to_string())
-    return returns.head(top_n), window
+    return returns.head(top_n + extra), window
 
 
 def run_actual(cfg: dict, months: int, top_n: int, min_cap_b: float | None, use_cache: bool) -> Path:
@@ -109,21 +109,27 @@ def run_actual(cfg: dict, months: int, top_n: int, min_cap_b: float | None, use_
             known = ensure_shares(conn, list(prices.columns), use_cache, settings)
             universe = Universe(known, min_cap_b)
 
-        top, window = compute_top(prices, months, top_n, int(cfg["backtest"]["trading_days_per_month"]), universe)
-        shares = ensure_shares(conn, list(top.index), use_cache, settings, known=known)
+        extra = int(cfg["backtest"].get("alternates", 0))
+        ranked, window = compute_top(prices, months, top_n, int(cfg["backtest"]["trading_days_per_month"]), universe,
+                                     extra)
+        shares = ensure_shares(conn, list(ranked.index), use_cache, settings, known=known)
 
         as_of = window.index[-1].date()
         run_at = datetime.now().isoformat(timespec="seconds")
         rows = []
-        for rank, (ticker, ret) in enumerate(top.items(), 1):
+        for rank, (ticker, ret) in enumerate(ranked.items(), 1):
             price = float(window[ticker].iloc[-1])
             cap = price * shares[ticker] if ticker in shares else None
             rows.append((run_at, as_of.isoformat(), months, min_cap_b, rank, ticker, float(ret), price, cap))
+        rows, alt_rows = rows[:top_n], rows[top_n:]
         previous_as_of, previous = rotation.previous_picks(conn, as_of.isoformat(), months, min_cap_b)
         # Repetir la corrida con los mismos datos reemplaza la anterior en vez de duplicar filas
         conn.execute("DELETE FROM actual_picks WHERE as_of = ? AND months = ? AND COALESCE(min_cap_billions, 0) = ?",
                      (as_of.isoformat(), months, min_cap_b or 0))
         conn.executemany("INSERT INTO actual_picks VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", rows)
+        conn.execute("DELETE FROM actual_alternates WHERE as_of = ? AND months = ? "
+                     "AND COALESCE(min_cap_billions, 0) = ?", (as_of.isoformat(), months, min_cap_b or 0))
+        conn.executemany("INSERT INTO actual_alternates VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", alt_rows)
         conn.commit()
         log.info("Resultado guardado en SQLite (tabla actual_picks)")
         notes = rotation.describe(previous_as_of, rotation.diff_picks(previous, [r[5] for r in rows]),
@@ -133,7 +139,12 @@ def run_actual(cfg: dict, months: int, top_n: int, min_cap_b: float | None, use_
 
     weight = 100 / len(rows)
     headers = ["#", "Ticker", f"Retorno {months} meses", "Cap. aprox. (US$ B)", "Precio (US$)", "Peso"]
-    table = [[str(r[4]), r[5], f"{r[6] * 100:+.1f}%", f"{r[8] / 1e9:,.0f}" if r[8] else "n/d",
-              f"{r[7]:,.2f}", f"{weight:.1f}%"] for r in rows]
-    console.print_actual(top_n, months, min_cap_b, as_of, window, headers, table, weight, notes)
-    return html_report.actual_report(cfg, top_n, months, min_cap_b, as_of, window, headers, table, weight, notes)
+
+    def fmt(r, w):
+        return [str(r[4]), r[5], f"{r[6] * 100:+.1f}%", f"{r[8] / 1e9:,.0f}" if r[8] else "n/d", f"{r[7]:,.2f}", w]
+
+    table = [fmt(r, f"{weight:.1f}%") for r in rows]
+    alternates = [fmt(r, "-") for r in alt_rows]
+    console.print_actual(top_n, months, min_cap_b, as_of, window, headers, table, weight, notes, alternates)
+    return html_report.actual_report(cfg, top_n, months, min_cap_b, as_of, window, headers, table, weight, notes,
+                                     alternates)

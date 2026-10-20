@@ -96,6 +96,9 @@ def _actual(conn: sqlite3.Connection, today: date | None = None) -> list[dict]:
         cap_b = cap or None
         prev_as_of, prev = rotation.previous_picks(conn, mine[0][1], months, cap_b)
         anchor = rotation.anchor_date(conn, months, cap_b)
+        alts = conn.execute(
+            "SELECT rank, ticker, return_lookback, price, market_cap FROM actual_alternates WHERE run_at = ? "
+            "AND COALESCE(min_cap_billions, 0) = ? AND months = ? ORDER BY rank", (run_at, cap, months)).fetchall()
         out.append({"min_cap_billions": cap or None, "label": label(cap), "months": months,
                     "as_of": mine[0][1], "run_at": run_at,
                     "previous_as_of": prev_as_of,
@@ -103,7 +106,9 @@ def _actual(conn: sqlite3.Connection, today: date | None = None) -> list[dict]:
                     "anchor": anchor,
                     "next_rebalance": rotation.next_rebalance(anchor, months, today or date.today()).isoformat(),
                     "picks": [{"rank": r[4], "ticker": r[5], "return": r[6], "price": r[7], "market_cap": r[8]}
-                              for r in mine]})
+                              for r in mine],
+                    "alternates": [{"rank": r[0], "ticker": r[1], "return": r[2], "price": r[3], "market_cap": r[4]}
+                                   for r in alts]})
     return out
 
 

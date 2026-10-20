@@ -30,6 +30,7 @@ DEFAULT_CONFIG: dict[str, dict] = {
         "months": 4,
         "initial_capital": 1000,
         "top_n": 4,
+        "alternates": 4,
         "trading_days_per_month": 21,
     },
     "tickers": {

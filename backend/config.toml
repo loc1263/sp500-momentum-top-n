@@ -41,9 +41,11 @@ periods_years = [2, 4, 6, 8, 10]
 # Se puede cambiar por corrida con --months N. Se prueban los N calendarios de arranque posibles
 # y se informa el calendario base (primer mes), la mediana y el rango.
 months = 4
-initial_capital = 1000
+initial_capital = 15000
 # Cantidad de tickers a comprar en cada rebalanceo (ponderación igual)
 top_n = 4
+# Suplentes que se muestran en el Top actual: las que siguen al top_n, para poder cambiar alguna (0 = ninguno)
+alternates = 4
 # Ruedas bursátiles por mes (para convertir meses en ventana de ranking)
 trading_days_per_month = 21
 

@@ -56,6 +56,7 @@ export const report = {
         { rank: 1, ticker: 'NVDA', return: 0.5, market_cap: 4e12, price: 180.5 },
         { rank: 2, ticker: 'BRK-B', return: -0.02, market_cap: 1e12, price: 480 },
       ],
+      alternates: [{ rank: 3, ticker: 'TSLA', return: -0.05, market_cap: 8e11, price: 250 }],
     },
   ],
   etf: {

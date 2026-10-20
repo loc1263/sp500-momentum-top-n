@@ -72,3 +72,31 @@
     </tbody>
   </table>
 </div>
+
+{#if actual.alternates?.length}
+  <h2>Suplentes</h2>
+  <p class="sub">
+    Las que siguen al top {actual.picks.length}, por si querés cambiar alguna. Con el mismo plazo y criterio de ranking.
+  </p>
+  <div class="wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th><th>Ticker</th><th class="r">Retorno {actual.months} meses</th>
+          <th class="r">Cap. aprox. (US$ B)</th><th class="r">Precio (US$)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {#each actual.alternates as p (p.ticker)}
+          <tr>
+            <td>{p.rank}</td>
+            <td><TickerLink ticker={p.ticker} /></td>
+            <td class="r {sign(p.return)}">{pct(p.return)}</td>
+            <td class="r">{billions(p.market_cap)}</td>
+            <td class="r">{usd(p.price)}</td>
+          </tr>
+        {/each}
+      </tbody>
+    </table>
+  </div>
+{/if}

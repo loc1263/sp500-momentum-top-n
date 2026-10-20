@@ -17,6 +17,16 @@ describe('ActualView', () => {
     expect(screen.getByText('-2,0%')).toBeInTheDocument();
     expect(screen.getAllByText('50,0%')).toHaveLength(3); // tarjeta + una celda por pick
   });
+  it('muestra los suplentes aparte, sin peso', () => {
+    render(ActualView, { actual });
+    expect(screen.getByText('Suplentes')).toBeInTheDocument();
+    expect(screen.getByText('TSLA')).toBeInTheDocument();
+    expect(screen.getByText('-5,0%')).toBeInTheDocument();
+  });
+  it('sin suplentes no muestra la sección', () => {
+    render(ActualView, { actual: { ...actual, alternates: [] } });
+    expect(screen.queryByText('Suplentes')).not.toBeInTheDocument();
+  });
   it('calcula el inicio de la ventana restando el plazo', () => {
     render(ActualView, { actual });
     expect(screen.getByText(/2026-06-19 a 2026-10-19/)).toBeInTheDocument();

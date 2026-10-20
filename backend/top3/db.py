@@ -32,6 +32,10 @@ CREATE TABLE IF NOT EXISTS actual_picks (
     run_at TEXT, as_of TEXT, months INTEGER, min_cap_billions REAL,
     rank INTEGER, ticker TEXT, return_lookback REAL, price REAL, market_cap REAL
 );
+CREATE TABLE IF NOT EXISTS actual_alternates (
+    run_at TEXT, as_of TEXT, months INTEGER, min_cap_billions REAL,
+    rank INTEGER, ticker TEXT, return_lookback REAL, price REAL, market_cap REAL
+);
 CREATE TABLE IF NOT EXISTS etf_scores (
     run_at TEXT, as_of TEXT, rank INTEGER, ticker TEXT, score REAL, vol REAL, max_dd REAL, sma_dist REAL,
     returns TEXT
