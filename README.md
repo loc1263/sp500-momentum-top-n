@@ -33,7 +33,7 @@ El proceso tiene tres pasos: **instalar**, **generar los datos** y **abrir la we
 una terminal (en Windows, PowerShell; en macOS y Linux, Terminal). Primero se descarga el proyecto:
 
 ```
-git clone https://github.com/<usuario>/sp500-momentum-top-n.git
+git clone https://github.com/loc1263/sp500-momentum-top-n.git
 cd sp500-momentum-top-n
 ```
 
