@@ -3,6 +3,7 @@ from dataclasses import dataclass
 
 import pandas as pd
 
+from . import errors as E
 from .constituents import Constituents
 from .logs import log
 from .universe import Universe
@@ -43,7 +44,8 @@ def rank_returns(prices: pd.DataFrame, tickers: list[str], when: pd.Timestamp,
     log.debug("%s: ventana shape=%s (desde %s)", when.date(), window.shape,
               window.index[0].date() if len(window) else None)
     if len(window) < lookback_days + 1:
-        log.warning("%s: solo %d filas de precios (<%d), se omite", when.date(), len(window), lookback_days + 1)
+        log.warning(E.BKT_SHORT_WINDOW.msg("%s: solo %d filas de precios (<%d), se omite"), when.date(), len(window),
+                    lookback_days + 1)
         return None
     return (window.iloc[-1] / window.iloc[0] - 1).dropna().sort_values(ascending=False)
 
@@ -77,11 +79,11 @@ def run_backtest(constituents: Constituents, prices: pd.DataFrame, start_date, e
     for when in rebalance_dates:
         constituents_now = constituents.on_date(when)
         if not constituents_now:
-            log.warning("%s: sin constituyentes, se omite", when.date())
+            log.warning(E.BKT_NO_CONSTITUENTS.msg("%s: sin constituyentes, se omite"), when.date())
             continue
         candidates = eligible_tickers(constituents_now, prices, when, universe)
         if len(candidates) < MIN_TICKERS:
-            log.warning("Pocos tickers disponibles en %s", when.date())
+            log.warning(E.BKT_FEW_TICKERS.msg("Pocos tickers disponibles en %s"), when.date())
             continue
         returns = rank_returns(prices, candidates, when, lookback_days)
         if returns is None:
@@ -99,7 +101,7 @@ def run_backtest(constituents: Constituents, prices: pd.DataFrame, start_date, e
                           with_data, period_ret)
                 capital *= 1 + period_ret
             else:
-                log.warning("Período %s→%s: sin datos para %s", entry_date.date(), when.date(), held)
+                log.warning(E.BKT_NO_PRICES.msg("Período %s→%s: sin datos para %s"), entry_date.date(), when.date(), held)
 
         held, entry_date = picks.index.tolist(), when
         equity.append(capital)
@@ -117,7 +119,7 @@ def run_backtest(constituents: Constituents, prices: pd.DataFrame, start_date, e
             dates.append(last_day)
 
     if not dates:
-        raise RuntimeError("El backtest no generó ningún rebalanceo; revisa fechas/histórico en la configuración.")
+        raise RuntimeError(E.BKT_EMPTY.msg("El backtest no generó ningún rebalanceo; revisa fechas/histórico en la configuración."))
 
     years = max((dates[-1] - dates[0]).days / 365.25, 0.1)
     return BacktestResult(

@@ -7,6 +7,7 @@ from datetime import datetime
 
 import pandas as pd
 
+from . import errors as E
 from .config import DataSettings
 from .constituents import Constituents
 from .engine import BacktestResult, run_backtest
@@ -109,7 +110,7 @@ def run_calendars(ctx: Context, months: int, universe: Universe | None = None) -
             result = run_backtest(ctx.constituents, ctx.prices, start, ctx.end_date, ctx.lookback_days(months),
                                   f"{months}MS", ctx.initial_capital, ctx.top_n, universe)
         except Exception as e:
-            log.warning("Plazo %d meses, desfase %d sin resultado: %s", months, offset, e)
+            log.warning(E.BKT_TERM_FAILED.msg("Plazo %d meses, desfase %d sin resultado: %s"), months, offset, e)
             continue
         save_run(ctx.conn, {**ctx.cfg, "sweep_months": months, "offset_months": offset,
                             "min_cap_billions": min_cap_b},

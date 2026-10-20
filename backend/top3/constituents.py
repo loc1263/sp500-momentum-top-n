@@ -8,6 +8,7 @@ from io import StringIO
 import pandas as pd
 import requests
 
+from . import errors as E
 from .config import DataSettings
 from .db import fetched_today, set_meta
 from .logs import log
@@ -67,13 +68,13 @@ def download_index_changes(conn: sqlite3.Connection, settings: DataSettings) -> 
     table = next((t for t in tables if isinstance(t.columns, pd.MultiIndex)
                   and "Added" in t.columns.get_level_values(0)), None)
     if table is None:
-        raise RuntimeError("No se encontró la tabla de cambios en Wikipedia (¿cambió el formato de la página?)")
+        raise RuntimeError(E.NET_WIKI_FORMAT.msg("No se encontró la tabla de cambios en Wikipedia (¿cambió el formato de la página?)"))
     table = table.iloc[:, :6]
     table.columns = ["date", "added", "added_name", "removed", "removed_name", "reason"]
     table["date"] = pd.to_datetime(table["date"], format="%B %d, %Y", errors="coerce")
     bad = table["date"].isna().sum()
     if bad:
-        log.warning("%d filas con fecha no interpretable, se ignoran", bad)
+        log.warning(E.DAT_BAD_DATES.msg("%d filas con fecha no interpretable, se ignoran"), bad)
     table = table.dropna(subset=["date"])
 
     def norm(v):
@@ -102,8 +103,8 @@ def ensure_constituents(conn: sqlite3.Connection, settings: DataSettings, use_ca
         try:
             download(conn, settings)
         except Exception:
-            log.exception("Error descargando composición %s", label)
-            log.warning("Se usará lo que haya en SQLite para la composición %s", label)
+            log.exception(E.NET_COMPOSITION.msg("Error descargando composición %s"), label)
+            log.warning(E.NET_FALLBACK.msg("Se usará lo que haya en SQLite para la composición %s"), label)
 
 
 def _day(value) -> str:
@@ -173,7 +174,7 @@ class Constituents:
             return self.current
         i = bisect.bisect_right(self.dates, t) - 1
         if i < 0:
-            log.warning("Sin datos históricos <= %s", t)
+            log.warning(E.DAT_NO_HISTORY.msg("Sin datos históricos <= %s"), t)
             return []
         log.debug("%s -> fila histórica %s (%d tickers)", t, self.dates[i], len(self.lists[i]))
         return self.lists[i]

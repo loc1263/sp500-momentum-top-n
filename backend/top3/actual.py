@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from . import console, html_report, rotation, universe as universes
+from . import console, errors as E, html_report, rotation, universe as universes
 from .config import DataSettings
 from .constituents import download_current_constituents
 from .db import fetched_today, get_meta, open_db
@@ -23,12 +23,12 @@ def get_current_tickers(conn: sqlite3.Connection, aliases: dict[str, str], use_c
         try:
             download_current_constituents(conn, settings)
         except Exception:
-            log.exception("No se pudo descargar la lista actual; se usa la guardada en SQLite")
+            log.exception(E.NET_CURRENT_LIST.msg("No se pudo descargar la lista actual; se usa la guardada en SQLite"))
     else:
         log.info("Lista actual del S&P 500: usando caché SQLite (descargada hoy)")
     tickers = [r[0] for r in conn.execute("SELECT ticker FROM constituents_current")]
     if not tickers:
-        raise SystemExit("No hay lista actual del S&P 500 (ni descargada ni en SQLite).")
+        raise SystemExit(E.DAT_NO_CURRENT.msg("No hay lista actual del S&P 500 (ni descargada ni en SQLite)."))
     tickers = list(dict.fromkeys(aliases.get(t, t) for t in tickers))
     log.info("Tickers del S&P 500 actual: %d", len(tickers))
     return tickers
@@ -77,11 +77,11 @@ def compute_top(prices: pd.DataFrame, months: int, top_n: int, trading_days_per_
         prices = prices[big]
     window = prices.tail(lookback + 1)
     if len(window) < lookback + 1:
-        raise SystemExit(f"Solo hay {len(window)} ruedas de precios; se necesitan {lookback + 1}.")
+        raise SystemExit(E.ACT_SHORT_WINDOW.msg(f"Solo hay {len(window)} ruedas de precios; se necesitan {lookback + 1}."))
     # Misma regla que el backtest: un ticker con huecos en la ventana no puede rankearse
     incomplete = [t for t in window.columns if window[t].isna().any()]
     if incomplete:
-        log.warning("%d tickers con huecos en la ventana quedan fuera del ranking: %s%s", len(incomplete),
+        log.warning(E.ACT_GAPS.msg("%d tickers con huecos en la ventana quedan fuera del ranking: %s%s"), len(incomplete),
                     ", ".join(incomplete[:15]), " ..." if len(incomplete) > 15 else "")
     returns = rank_returns(prices, list(prices.columns), prices.index[-1], lookback)
     window = window.dropna(axis=1, how="any")

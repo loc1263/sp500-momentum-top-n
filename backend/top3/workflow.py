@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from . import console, html_report, universe as universes
+from . import console, errors as E, html_report, universe as universes
 from .analysis import Context, attach_market_caps, run_calendars, run_terms
 from .config import DataSettings
 from .logs import log
@@ -38,7 +38,7 @@ def run_single(ctx: Context, months: int, universe: Universe | None) -> Path:
     log.info("Ejecutando backtest Point-in-Time (plazo %d meses)...", months)
     term = run_calendars(ctx, months, universe)
     if term.base is None:
-        raise SystemExit("El backtest no generó ningún rebalanceo; revisa fechas/histórico en la configuración.")
+        raise SystemExit(E.BKT_EMPTY.msg("El backtest no generó ningún rebalanceo; revisa fechas/histórico en la configuración."))
     attach_market_caps(ctx, [term], universe)
     console.print_backtest(ctx, term, _min_cap(universe))
     return html_report.backtest_report(ctx, term, _min_cap(universe))

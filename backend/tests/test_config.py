@@ -56,3 +56,21 @@ def test_setup_logging_creates_dir(tmp_path):
     for h in list(log.handlers):
         h.close()
     log.handlers.clear()
+
+
+def test_setup_logging_captures_python_warnings(tmp_path):
+    import logging
+    import warnings
+    setup_logging("w.log", str(tmp_path))
+    try:
+        warnings.showwarning("aviso de prueba", UserWarning, "archivo.py", 7)  # lo que invoca warnings.warn
+        for h in log.handlers:
+            h.flush()
+        text = (tmp_path / "w.log").read_text(encoding="utf-8")
+        assert "[WARNING] TOP-SYS-001: " in text and "aviso de prueba" in text
+    finally:
+        logging.captureWarnings(False)
+        logging.getLogger("py.warnings").handlers.clear()
+        for h in list(log.handlers):
+            h.close()
+        log.handlers.clear()

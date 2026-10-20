@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from top3 import errors as E
 from top3.analysis import Context
 from top3.config import DataSettings, load_config
 from top3.console import configure_console
@@ -78,12 +79,13 @@ def run(args: argparse.Namespace, cfg: dict) -> list[Path]:
     periods = resolve_periods(bt_cfg, end_date, args.years)
     for years, start_date in periods:
         if start_date >= end_date:
-            raise SystemExit(f"start_date ({start_date.date()}) debe ser anterior a end_date ({end_date.date()})")
+            raise SystemExit(E.CFG_BAD_DATES.msg(
+                f"start_date ({start_date.date()}) debe ser anterior a end_date ({end_date.date()})"))
         log.info("Histórico: %s a %s | Backtest de %g años: %s a %s", history_start, today, years,
                  start_date.date(), end_date.date())
         if start_date < pd.to_datetime(history_start):
-            log.warning("El inicio del backtest de %g años (%s) es anterior al histórico descargado (%s); "
-                        "subí [data] history_years", years, start_date.date(), history_start)
+            log.warning(E.CFG_SHORT_HISTORY.msg("El inicio del backtest de %g años (%s) es anterior al histórico descargado (%s); "
+                                            "subí [data] history_years"), years, start_date.date(), history_start)
 
     conn = open_db(cfg["data"]["db_path"])
     try:

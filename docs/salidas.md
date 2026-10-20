@@ -37,4 +37,5 @@ vs. el capital inicial, en verde si es positivo). Se puede desactivar el color c
 
 Cada ejecución escribe `log/top3_backtest.log` (o `log/top3_actual.log`) con nivel DEBUG: respuestas HTTP, forma de las
 tablas, tickers sin datos, filtros de capitalización y retornos por período. El log se sobrescribe en cada
-corrida; la consola muestra solo el nivel INFO.
+corrida; la consola muestra solo el nivel INFO. Los avisos y errores llevan un ID estable (`TOP-BKT-003: ...`);
+el catálogo está en [errores.md](errores.md).

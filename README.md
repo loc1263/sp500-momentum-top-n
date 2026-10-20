@@ -40,4 +40,5 @@ docs/          # documentación
 | [docs/como-funciona.md](docs/como-funciona.md) | Metodología, universo y capitalización, limitaciones |
 | [docs/configuracion.md](docs/configuracion.md) | Todas las claves de `config.toml` |
 | [docs/salidas.md](docs/salidas.md) | Reportes HTML, consola, tablas SQLite y logs |
+| [docs/errores.md](docs/errores.md) | Códigos de error y aviso (`TOP-BKT-003`...) y qué hacer con cada uno |
 | [docs/desarrollo.md](docs/desarrollo.md) | Módulos del backend y del frontend, tests |

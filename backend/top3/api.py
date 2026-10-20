@@ -7,6 +7,7 @@ import json
 import threading
 from http.server import BaseHTTPRequestHandler
 
+from . import errors as E
 from .db import open_db
 from .logs import log
 from .report_data import build_report
@@ -68,8 +69,8 @@ def make_handler(cfg: dict) -> type[BaseHTTPRequestHandler]:
                 try:
                     return self._send_json(200, cache.get())
                 except Exception:
-                    log.exception("Error armando /api/report")
-                    return self._send_json(500, {"error": "No se pudo leer la base de datos"})
+                    log.exception(E.API_REPORT.msg("Error armando /api/report"))
+                    return self._send_json(500, {"error": "No se pudo leer la base de datos", "code": E.API_REPORT.id})
             self._send_json(404, {"error": "No existe"})
 
         def log_message(self, fmt, *args) -> None:

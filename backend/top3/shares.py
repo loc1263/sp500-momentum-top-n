@@ -6,6 +6,7 @@ from datetime import date
 import pandas as pd
 import yfinance as yf
 
+from . import errors as E
 from .config import DataSettings
 from .logs import log
 
@@ -40,7 +41,8 @@ def ensure_shares(conn: sqlite3.Connection, tickers: list[str], use_cache: bool,
                 missing.append(t)
     conn.commit()
     if missing:
-        log.warning("Sin dato de acciones en circulación para %d tickers (capitalización n/d)", len(missing))
+        log.warning(E.DAT_NO_SHARES.msg("Sin dato de acciones en circulación para %d tickers (capitalización n/d)"),
+                    len(missing))
         log.debug("Sin acciones en circulación: %s", sorted(missing))
     return shares
 
