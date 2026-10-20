@@ -14,19 +14,30 @@ log = logging.getLogger("top3")
 log.setLevel(logging.DEBUG)
 
 FORMAT = "%(asctime)s [%(levelname)s] %(message)s"
-YELLOW, RED, RESET = "[33m", "[31m", "[0m"
+YELLOW, RED, GREEN, RESET = "\033[33m", "\033[31m", "\033[32m", "\033[0m"
 _ansi_enabled = False
 
 
-def stderr_color() -> bool:
-    """Color ANSI solo si stderr es una terminal y no hay NO_COLOR (al redirigir a archivo/pipe no se ensucia)."""
+def _color_enabled(stream) -> bool:
+    """Color ANSI solo si `stream` es una terminal y no hay NO_COLOR (al redirigir a archivo/pipe no se ensucia)."""
     global _ansi_enabled
-    if not sys.stderr.isatty() or os.environ.get("NO_COLOR"):
+    if not stream.isatty() or os.environ.get("NO_COLOR"):
         return False
     if not _ansi_enabled:
         os.system("")  # habilita secuencias ANSI en la consola de Windows
         _ansi_enabled = True
     return True
+
+
+def stderr_color() -> bool:
+    return _color_enabled(sys.stderr)
+
+
+def heading(text: str, stream=None) -> str:
+    """`text` en verde (títulos y marcos de los resúmenes) si la salida admite color; `stream` es donde se imprime
+    (por defecto stderr)."""
+    enabled = stderr_color() if stream is None else _color_enabled(stream)
+    return f"{GREEN}{text}{RESET}" if enabled else text
 
 
 def paint(text: str, level: int) -> str:
@@ -76,8 +87,8 @@ def format_summary(items: list[dict], logfile: str | None = None) -> list[str]:
     """Líneas del resumen. Cada item: code, count, level y sample (y steps, si vienen de varios pasos)."""
     errors = sum(i["count"] for i in items if i["level"] >= logging.ERROR)
     warnings = sum(i["count"] for i in items if i["level"] < logging.ERROR)
-    lines = [paint("=" * 78, logging.INFO), f"RESUMEN DE AVISOS Y ERRORES: {errors} errores, {warnings} avisos",
-             paint("=" * 78, logging.INFO)]
+    lines = [heading("=" * 78), heading(f"RESUMEN DE AVISOS Y ERRORES: {errors} errores, {warnings} avisos"),
+             heading("=" * 78)]
     ordered = sorted(items, key=lambda i: (-i["level"], i["code"]))  # errores primero
     for item in ordered:
         entry = CATALOG.get(item["code"])

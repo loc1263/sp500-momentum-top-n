@@ -21,7 +21,8 @@ Las tablas de selecciones tienen una fila por rebalanceo: `Fecha`, los tickers `
 `Cap. aprox. (US$ B)` (informativa), `Capital (US$)` (valor al entrar a esa fila) y `Gan/Pérd` (acumulado
 vs. el capital inicial, en verde si es positivo). Se puede desactivar el color con la variable `NO_COLOR=1`.
 
-Los avisos del log salen en **amarillo** y los errores en **rojo** (incluidos los mensajes que cortan un script y los
+Los títulos y marcos de los resúmenes (cada paso del pipeline, `RESUMEN` y `RESUMEN DE AVISOS Y ERRORES`) salen en
+**verde**. Los avisos del log salen en **amarillo** y los errores en **rojo** (incluidos los mensajes que cortan un script y los
 tracebacks sin capturar). Solo si la salida es una terminal: al redirigir a archivo o pipe, o con `NO_COLOR=1`, va sin
 color. El archivo de log nunca lleva códigos de color.
 

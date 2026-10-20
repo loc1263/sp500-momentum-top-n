@@ -228,3 +228,60 @@ def test_yfinance_errors_are_triaged_into_the_log(tmp_path, capsys, monkeypatch)
     assert "[ERROR] TOP-NET-005: ['ADM']" in err and "[WARNING] TOP-NET-007: ['XYZ']" in err
     assert "delisted" not in err and "Failed download" not in err and "BCR" not in err       # no ensucian la consola
     assert "RESUMEN DE AVISOS Y ERRORES: 1 errores, 1 avisos" in err     # y no se cuentan de más
+
+
+def test_headings_are_green_only_when_the_stream_supports_color(monkeypatch):
+    import io
+    from top3 import logs
+
+    class Terminal(io.StringIO):
+        def isatty(self):
+            return True
+
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    assert logs.heading("RESUMEN", Terminal()) == f"{logs.GREEN}RESUMEN{logs.RESET}"
+    assert logs.heading("RESUMEN", io.StringIO()) == "RESUMEN"                 # redirigido: sin color
+    monkeypatch.setenv("NO_COLOR", "1")
+    assert logs.heading("RESUMEN", Terminal()) == "RESUMEN"
+    monkeypatch.setattr(logs, "stderr_color", lambda: True)                      # por defecto va a stderr
+    assert logs.heading("x") == f"{logs.GREEN}x{logs.RESET}"
+
+
+def test_warning_summary_title_and_frame_are_green(monkeypatch):
+    from top3 import logs
+    item = {"code": "TOP-BKT-003", "count": 2, "level": 30, "sample": "TOP-BKT-003: Pocos tickers"}
+    monkeypatch.setattr(logs, "stderr_color", lambda: True)
+    lines = logs.format_summary([item], "log/x.log")
+    green = lambda text: f"{logs.GREEN}{text}{logs.RESET}"
+    assert lines[0] == green("=" * 78) and lines[2] == green("=" * 78)
+    assert lines[1] == green("RESUMEN DE AVISOS Y ERRORES: 0 errores, 2 avisos")
+    assert logs.YELLOW in lines[3]                                               # el detalle conserva su color de nivel
+
+
+def test_pipeline_step_titles_and_summary_are_green(monkeypatch):
+    import io
+    import sys
+
+    import pytest
+    import run_pipeline
+    from top3 import logs
+
+    class Terminal(io.StringIO):
+        def isatty(self):
+            return True
+
+    out = Terminal()
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    monkeypatch.setattr(sys, "stdout", out)
+    monkeypatch.setattr(sys, "argv", ["run_pipeline.py", "--config", "no_existe.toml", "--skip-backtest",
+                                      "--skip-actual", "--skip-etf"])
+    monkeypatch.setattr(run_pipeline.subprocess, "run", lambda *a, **k: type("R", (), {"returncode": 0})())
+    with pytest.raises(SystemExit) as e:
+        run_pipeline.main()
+    assert e.value.code == 0
+    text = out.getvalue()
+    green = lambda t: f"{logs.GREEN}{t}{logs.RESET}"
+    assert green("[1/1] Exportar JSON del frontend") in text
+    assert green("=" * 78) in text and green("RESUMEN") in text
+    detail = [line for line in text.split("\n") if "Exportar JSON del frontend" in line and "OK" in line]
+    assert len(detail) == 1 and logs.GREEN not in detail[0]                       # el detalle de cada paso no

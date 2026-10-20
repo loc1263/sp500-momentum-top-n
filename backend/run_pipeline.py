@@ -20,7 +20,7 @@ import time
 from pathlib import Path
 
 from top3.config import load_config
-from top3.logs import STEP_ENV, SUMMARY_FILE_ENV, format_summary, merge_summaries, paint
+from top3.logs import STEP_ENV, SUMMARY_FILE_ENV, format_summary, heading, merge_summaries, paint
 
 HERE = Path(__file__).resolve().parent
 
@@ -77,9 +77,9 @@ def main():
     summary_file = Path(tempfile.mkdtemp()) / "summary.jsonl"  # cada paso deja ahí sus avisos y errores
     results, t_start = [], time.time()
     for i, (name, cmd) in enumerate(steps, 1):
-        print("=" * 78)
-        print(f"[{i}/{len(steps)}] {name}")
-        print("=" * 78, flush=True)
+        print(heading("=" * 78, sys.stdout))
+        print(heading(f"[{i}/{len(steps)}] {name}", sys.stdout))
+        print(heading("=" * 78, sys.stdout), flush=True)
         t0 = time.time()
         env = {**os.environ, SUMMARY_FILE_ENV: str(summary_file), STEP_ENV: name}
         rc = subprocess.run(cmd, cwd=HERE, env=env).returncode
@@ -89,9 +89,10 @@ def main():
                   file=sys.stderr)
             break
 
-    print("\n" + "=" * 78)
-    print("RESUMEN")
-    print("=" * 78)
+    print()
+    print(heading("=" * 78, sys.stdout))
+    print(heading("RESUMEN", sys.stdout))
+    print(heading("=" * 78, sys.stdout))
     for name, rc, secs in results:
         print(f"  {'OK   ' if not rc else 'FALLÓ'}  {secs:6.0f} s  {name}")
     for name, _ in steps[len(results):]:
