@@ -18,7 +18,7 @@ def fetch_prices(tickers: list[str], start: str, end: str, batch_size: int) -> t
     for i in range(0, len(tickers), batch_size):
         batch = tickers[i:i + batch_size]
         data = yf.download(batch, start=start, end=end, auto_adjust=True,
-                           progress=False, threads=True)["Close"]
+                           progress=False, threads=True)["Close"].copy()  # yfinance lo arma columna a columna: se desfragmenta
         if isinstance(data, pd.Series):
             data = data.to_frame(name=batch[0])
         got = set(data.columns[data.notna().any()])
