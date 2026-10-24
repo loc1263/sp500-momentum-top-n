@@ -10,6 +10,7 @@
     d.setUTCMonth(d.getUTCMonth() - actual.months);
     return d.toISOString().slice(0, 10);
   });
+  const tracking = $derived(actual.tracking ?? []);
   const list = (tickers) => (tickers.length ? tickers.join(', ') : '-');
 </script>
 
@@ -27,7 +28,7 @@
   {/if}
 </div>
 
-<h2>Top {actual.picks.length} de los últimos {actual.months} meses</h2>
+<h2>Top {actual.picks.length} de los últimos {actual.months} meses (modelo N-0)</h2>
 <p class="range">
   <strong>Ventana de retorno:</strong> {from} a {actual.as_of}
   <span class="muted">({actual.months} meses)</span>
@@ -94,6 +95,40 @@
             <td class="r {sign(p.return)}">{pct(p.return)}</td>
             <td class="r">{billions(p.market_cap)}</td>
             <td class="r">{usd(p.price)}</td>
+          </tr>
+        {/each}
+      </tbody>
+    </table>
+  </div>
+{/if}
+
+{#if tracking.length}
+  <h2>Seguimiento de selecciones anteriores</h2>
+  <p class="sub">
+    Cómo le fue a cada selección guardada, con el precio de cuando se eligió y el último precio disponible. Una
+    selección dura {actual.months} meses; pasado ese plazo figura como cerrada y se mide hasta su fin. Es una
+    verificación fuera del backtest, pero con pocas selecciones guardadas no prueba nada todavía.
+  </p>
+  <div class="wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Elegida el</th><th>Medida hasta</th><th class="r">Días</th><th>Estado</th>
+          <th>Acciones</th><th class="r">Retorno (ponderación igual)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {#each tracking as t (t.as_of)}
+          <tr>
+            <td>{t.as_of}</td>
+            <td>{t.until}</td>
+            <td class="r">{t.days}</td>
+            <td>{t.closed ? 'cerrada' : 'en curso'}</td>
+            <td>
+              {#each t.picks as p, i (p.ticker)}{i ? ', ' : ''}{p.ticker}
+                <span class={sign(p.return)}>{pct(p.return)}</span>{/each}
+            </td>
+            <td class="r {sign(t.return)}">{pct(t.return)}</td>
           </tr>
         {/each}
       </tbody>

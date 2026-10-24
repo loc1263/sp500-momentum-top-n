@@ -24,6 +24,22 @@
   const winsBase = $derived(rows.filter((r) => r.winner === 'a').length);
   const avgDiff = $derived(rows.length ? rows.reduce((s, r) => s + r.diff, 0) / rows.length : 0);
 
+  // Mitades del período: ¿el ganador se sostiene en las dos?
+  const winnerOf = (a, b) => (a == null || b == null || a === b ? null : b > a ? 'N-1' : 'N-0');
+  const halfRows = $derived(
+    rows.map((r) => {
+      const ha = r.a.summary.halves;
+      const hb = r.b.summary.halves;
+      const first = winnerOf(ha?.first, hb?.first);
+      const second = winnerOf(ha?.second, hb?.second);
+      return { ...r, ha, hb, first, second, steady: first && first === second ? first : null };
+    }),
+  );
+  const halvesAvailable = $derived(halfRows.some((r) => r.first || r.second));
+  const steadyBase = $derived(halfRows.filter((r) => r.steady === 'N-0').length);
+  const steadySkip = $derived(halfRows.filter((r) => r.steady === 'N-1').length);
+  const split = $derived(halfRows.find((r) => r.ha?.split)?.ha.split);
+
   let chosen = $state(null); // null = plazo del config
   const row = $derived(rows.find((r) => r.months === (chosen ?? settings.months)) ?? rows[0]);
   const series = $derived(
@@ -106,6 +122,57 @@
     «Típico» = mediana de todas las fechas de arranque posibles. US$ {int(settings.initial_capital)} iniciales.
     «Gana» compara el resultado típico anual: una diferencia pequeña no es evidencia de que un modelo sea mejor.
   </p>
+
+  {#if halvesAvailable}
+    <h2>¿Se sostiene en el tiempo?</h2>
+    <Range period={universe} {first} />
+    <p class="sub">
+      El período se parte en dos mitades (corte cerca del {split}) y se mide cada modelo en cada una, con la
+      mediana de las fechas de arranque. Si un modelo gana en las dos mitades, su ventaja no depende de un solo tramo
+      del mercado.
+      <strong>
+        N-0 gana las dos mitades en {steadyBase} de {rows.length} plazos, N-1 en {steadySkip};
+        el resto se reparte.
+      </strong>
+    </p>
+    <div class="wrap">
+      <table>
+        <thead>
+          <tr class="groups">
+            <th></th>
+            <th colspan="3">Primera mitad (anual)</th>
+            <th colspan="3">Segunda mitad (anual)</th>
+            <th></th>
+          </tr>
+          <tr>
+            <th>Plazo</th>
+            <th class="r">N-0</th><th class="r">N-1</th><th>Gana</th>
+            <th class="r">N-0</th><th class="r">N-1</th><th>Gana</th>
+            <th>Se sostiene</th>
+          </tr>
+        </thead>
+        <tbody>
+          {#each halfRows as r (r.months)}
+            <tr>
+              <td><strong>{r.months} meses</strong></td>
+              <td class="r {sign(r.ha?.first)}">{pct(r.ha?.first)}</td>
+              <td class="r {sign(r.hb?.first)}">{pct(r.hb?.first)}</td>
+              <td>{r.first ?? '-'}</td>
+              <td class="r {sign(r.ha?.second)}">{pct(r.ha?.second)}</td>
+              <td class="r {sign(r.hb?.second)}">{pct(r.hb?.second)}</td>
+              <td>{r.second ?? '-'}</td>
+              <td>
+                {#if r.steady}<span class="badge good">{r.steady} en las dos</span>{:else}<span class="muted">no</span>{/if}
+              </td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    </div>
+    <p class="sub note">
+      Con períodos cortos cada mitad tiene muy pocos rebalanceos: conviene mirar los de 6 años o más.
+    </p>
+  {/if}
 
   <h2>Evolución del capital</h2>
   <div class="toolbar">

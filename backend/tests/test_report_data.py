@@ -189,3 +189,52 @@ def test_build_report_separates_the_skip_month_model(conn, cfg):
     skip = report["backtest_skip"][0]["periods"][0]["terms"][0]["calendars"][0]
     assert base["final_capital"] == 1210.0 and skip["final_capital"] == 1500.0
     assert skip["history"][0]["picks"][0]["ticker"] == "ZZZ"
+
+
+def test_halves_split_the_period_at_its_midpoint():
+    from top3.report_data import _halves
+    # 4 años: capital x2 en la primera mitad y x1,5 en la segunda
+    cal = {"offset": 0, "start_date": "2020-01-01", "end_date": "2024-01-01",
+           "equity": [{"date": "2020-01-01", "capital": 1000.0}, {"date": "2022-01-01", "capital": 2000.0},
+                      {"date": "2024-01-01", "capital": 3000.0}]}
+    halves = _halves([cal])
+    assert halves["split"] == "2021-12-31"      # mitad exacta del período
+    assert halves["first"] == pytest.approx(2 ** 0.5 - 1, abs=0.01)
+    assert halves["second"] == pytest.approx(1.5 ** 0.5 - 1, abs=0.01)
+
+
+def test_halves_leave_a_too_short_half_empty():
+    from top3.report_data import _halves
+    cal = {"offset": 0, "start_date": "2024-01-01", "end_date": "2024-03-01",
+           "equity": [{"date": "2024-01-01", "capital": 1000.0}, {"date": "2024-03-01", "capital": 1100.0}]}
+    assert _halves([cal])["first"] is None
+
+
+def seed_picks(conn, as_of, rows, run_at=None):
+    conn.executemany("INSERT INTO actual_picks VALUES (?,?,?,?,?,?,?,?,?)",
+                     [(run_at or as_of + "T10:00:00", as_of, 4, None, rank, t, 0.5, price, 1e9)
+                      for rank, (t, price) in enumerate(rows, 1)])
+
+
+def test_tracking_measures_open_and_closed_selections(conn):
+    from top3.report_data import _tracking
+    conn.executemany("INSERT INTO prices VALUES (?,?,?)", [
+        ("AAA", "2024-01-02", 10.0), ("AAA", "2024-05-02", 12.0), ("AAA", "2024-07-01", 15.0),
+        ("BBB", "2024-01-02", 20.0), ("BBB", "2024-05-02", 18.0), ("BBB", "2024-07-01", 18.0)])
+    seed_picks(conn, "2024-01-02", [("AAA", 10.0), ("BBB", 20.0)])
+    seed_picks(conn, "2024-06-03", [("AAA", 14.0), ("BBB", 20.0)])
+    conn.commit()
+    closed, opened = _tracking(conn, 0, 4)[::-1]
+    assert opened["as_of"] == "2024-06-03" and opened["closed"] is False
+    assert opened["return"] == pytest.approx((15 / 14 - 1 + 18 / 20 - 1) / 2)
+    assert closed["as_of"] == "2024-01-02" and closed["closed"] is True and closed["until"] == "2024-05-02"
+    assert closed["return"] == pytest.approx((0.2 - 0.1) / 2)       # solo hasta que terminó la tenencia de 4 meses
+
+
+def test_tracking_skips_the_selection_of_the_last_day_and_empty_data(conn):
+    from top3.report_data import _tracking
+    assert _tracking(conn, 0, 4) == []                               # sin precios
+    conn.execute("INSERT INTO prices VALUES ('AAA', '2024-01-02', 10.0)")
+    seed_picks(conn, "2024-01-02", [("AAA", 10.0)])
+    conn.commit()
+    assert _tracking(conn, 0, 4) == []                               # todavía no pasó ni un día

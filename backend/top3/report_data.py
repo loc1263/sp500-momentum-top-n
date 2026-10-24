@@ -45,12 +45,41 @@ def _run_detail(conn: sqlite3.Connection, run_id: int, initial_capital: float) -
     return equity, history
 
 
+MIN_HALF_DAYS = 90  # una mitad más corta que esto no da un CAGR con sentido
+
+
+def _halves(calendars: list[dict]) -> dict:
+    """CAGR mediano de cada mitad del período (por fecha), para ver si el resultado se sostiene en el tiempo.
+
+    Se parte la curva de capital de cada calendario en la fecha media del período; el corte se hace en el punto de la
+    curva más cercano a esa fecha (hay uno por rebalanceo). Una mitad sin datos suficientes queda en None."""
+    base = next((c for c in calendars if c["offset"] == 0), calendars[0])
+    start, end = date.fromisoformat(base["start_date"]), date.fromisoformat(base["end_date"])
+    mid = start + (end - start) / 2
+    firsts, seconds = [], []
+
+    def cagr(v0: float, d0: date, v1: float, d1: date) -> float | None:
+        days = (d1 - d0).days
+        return (v1 / v0) ** (365.25 / days) - 1 if days >= MIN_HALF_DAYS and v0 > 0 else None
+
+    for c in calendars:
+        points = [(date.fromisoformat(e["date"]), e["capital"]) for e in c["equity"]]
+        d_mid, v_mid = min(points, key=lambda p: abs((p[0] - mid).days))   # el punto de la curva más cercano
+        for out, value in ((firsts, cagr(points[0][1], points[0][0], v_mid, d_mid)),
+                           (seconds, cagr(v_mid, d_mid, points[-1][1], points[-1][0]))):
+            if value is not None:
+                out.append(value)
+    return {"split": mid.isoformat(), "first": statistics.median(firsts) if firsts else None,
+            "second": statistics.median(seconds) if seconds else None}
+
+
 def _term_summary(calendars: list[dict]) -> dict:
     cagrs = [c["cagr"] for c in calendars]
     finals = [c["final_capital"] for c in calendars]
     return {"calendars": len(calendars), "cagr_median": statistics.median(cagrs),
             "cagr_min": min(cagrs), "cagr_max": max(cagrs),
-            "capital_median": statistics.median(finals), "capital_min": min(finals), "capital_max": max(finals)}
+            "capital_median": statistics.median(finals), "capital_min": min(finals), "capital_max": max(finals),
+            "halves": _halves(calendars)}
 
 
 def _backtest(conn: sqlite3.Connection, latest: dict, initial_capital: float, skip_months: int = 0) -> list[dict]:
@@ -83,6 +112,48 @@ def _backtest(conn: sqlite3.Connection, latest: dict, initial_capital: float, sk
     return out
 
 
+def _tracking(conn: sqlite3.Connection, cap: float, months: int) -> list[dict]:
+    """Cómo le fue a cada selección guardada del Top actual (de la más nueva a la más vieja).
+
+    Se mide con el precio guardado al elegirla y el último precio disponible, sin pasar de los `months` meses que
+    dura la tenencia: si ya pasaron, la selección figura como cerrada y su retorno es el del plazo completo."""
+    last = conn.execute("SELECT MAX(date) FROM prices").fetchone()[0]
+    if not last:
+        return []
+    last_day = date.fromisoformat(last)
+    rows = conn.execute(
+        "SELECT as_of, ticker, price FROM actual_picks WHERE COALESCE(min_cap_billions, 0) = ? AND months = ? "
+        "AND run_at = (SELECT MAX(run_at) FROM actual_picks p WHERE p.as_of = actual_picks.as_of "
+        "AND COALESCE(p.min_cap_billions, 0) = ? AND p.months = ?) ORDER BY as_of, rank",
+        (cap, months, cap, months)).fetchall()
+    by_date: dict[str, list[tuple[str, float]]] = {}
+    for as_of, ticker, price in rows:
+        by_date.setdefault(as_of, []).append((ticker, price))
+    out = []
+    for as_of, picks in sorted(by_date.items(), reverse=True):
+        bought = date.fromisoformat(as_of)
+        # fin de la tenencia: mismo día del mes, `months` meses después
+        year, month = divmod(bought.month - 1 + months, 12)
+        try:
+            term_end = bought.replace(year=bought.year + year, month=month + 1)
+        except ValueError:                       # 29-31 en un mes más corto
+            term_end = bought.replace(year=bought.year + year, month=month + 1, day=28)
+        end = min(term_end, last_day)
+        if end <= bought:
+            continue
+        returns = []
+        for ticker, price in picks:
+            row = conn.execute("SELECT close FROM prices WHERE ticker = ? AND date <= ? ORDER BY date DESC LIMIT 1",
+                               (ticker, end.isoformat())).fetchone()
+            if row and price:
+                returns.append({"ticker": ticker, "price": price, "now": row[0], "return": row[0] / price - 1})
+        if returns:
+            out.append({"as_of": as_of, "until": end.isoformat(), "days": (end - bought).days,
+                        "closed": term_end <= last_day, "picks": returns,
+                        "return": statistics.mean(r["return"] for r in returns)})
+    return out
+
+
 def _actual(conn: sqlite3.Connection, today: date | None = None) -> list[dict]:
     """Último Top actual de cada (universo, plazo) entre los de la fecha más reciente."""
     last_run_at = conn.execute("SELECT MAX(run_at) FROM actual_picks").fetchone()[0]
@@ -111,7 +182,8 @@ def _actual(conn: sqlite3.Connection, today: date | None = None) -> list[dict]:
                     "picks": [{"rank": r[4], "ticker": r[5], "return": r[6], "price": r[7], "market_cap": r[8]}
                               for r in mine],
                     "alternates": [{"rank": r[0], "ticker": r[1], "return": r[2], "price": r[3], "market_cap": r[4]}
-                                   for r in alts]})
+                                   for r in alts],
+                    "tracking": _tracking(conn, cap, months)})
     return out
 
 

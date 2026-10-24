@@ -134,3 +134,39 @@ describe('CompareView', () => {
     expect(screen.getByText(/Sin resultados del modelo skip-month/)).toBeInTheDocument();
   });
 });
+
+describe('CompareView: mitades', () => {
+  const half = (first, second) => ({ split: '2023-01-01', first, second });
+  const skip = { label: 'Todo el índice', ...period(5) };
+  skip.terms = [
+    { ...skip.terms[0], summary: { ...skip.terms[0].summary, halves: half(0.3, 0.0) } },
+    { ...skip.terms[1], summary: { ...skip.terms[1].summary, halves: half(0.4, 0.6) } },
+  ];
+  // N-0 (fixtures): 3 meses = 0,1 / 0,05 ; 4 meses = 0,3 / 0,2
+  it('marca si el mismo modelo gana las dos mitades', () => {
+    render(CompareView, { universe, skip, settings });
+    const rows = screen.getAllByRole('row').filter((r) => r.textContent.includes('en las dos'));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toHaveTextContent('4 meses');
+    expect(rows[0]).toHaveTextContent('N-1 en las dos');
+    expect(screen.getByText(/N-0 gana las dos mitades en 0 de 2 plazos, N-1 en 1/)).toBeInTheDocument();
+  });
+  it('sin datos de mitades no muestra la sección', () => {
+    const strip = (u) => ({ ...u, terms: u.terms.map((t) => ({ ...t, summary: { ...t.summary, halves: undefined } })) });
+    render(CompareView, { universe: strip(universe), skip: strip(skip), settings });
+    expect(screen.queryByText('¿Se sostiene en el tiempo?')).not.toBeInTheDocument();
+  });
+});
+
+describe('ActualView: seguimiento', () => {
+  it('lista las selecciones anteriores con su retorno y estado', () => {
+    render(ActualView, { actual: report.actual[0] });
+    expect(screen.getByText('Seguimiento de selecciones anteriores')).toBeInTheDocument();
+    expect(screen.getByText('cerrada')).toBeInTheDocument();
+    expect(screen.getByText('+10,0%')).toBeInTheDocument();
+  });
+  it('sin seguimiento no muestra la sección', () => {
+    render(ActualView, { actual: { ...report.actual[0], tracking: [] } });
+    expect(screen.queryByText('Seguimiento de selecciones anteriores')).not.toBeInTheDocument();
+  });
+});

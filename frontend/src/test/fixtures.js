@@ -32,6 +32,7 @@ const term = (months, cagrs) => ({
     capital_median: 1500,
     capital_min: 1200,
     capital_max: 1900,
+    halves: { split: '2023-01-01', first: cagrs[0], second: cagrs[1] },
   },
   calendars: cagrs.map((c, i) => calendar(i, 1000 * (1 + c) ** 3, c)),
 });
@@ -57,6 +58,12 @@ export const report = {
         { rank: 2, ticker: 'BRK-B', return: -0.02, market_cap: 1e12, price: 480 },
       ],
       alternates: [{ rank: 3, ticker: 'TSLA', return: -0.05, market_cap: 8e11, price: 250 }],
+      tracking: [
+        {
+          as_of: '2026-06-18', until: '2026-10-18', days: 122, closed: true, return: 0.1,
+          picks: [{ ticker: 'NVDA', return: 0.3 }, { ticker: 'AMD', return: -0.1 }],
+        },
+      ],
     },
   ],
   etf: {
