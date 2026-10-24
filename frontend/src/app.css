@@ -92,6 +92,9 @@ select:hover { border-color: var(--muted); }
   body { font-size: 14px; }
   h1 { font-size: 1.45rem; }
   th, td { padding: 4px 10px; }
+  /* Textos largos (empresa, categoría) se recortan para que las cifras queden a la vista; los encabezados se parten */
+  td { max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
+  th { white-space: normal; vertical-align: bottom; }
   .card .v { font-size: 1.1rem; }
   .card { padding: 8px 10px; }
 }
