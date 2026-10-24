@@ -6,7 +6,8 @@
     python run_pipeline.py --tests         # corre primero los tests
     python run_pipeline.py --skip-backtest # solo Top actual + export
 
-Cada paso es un script independiente (top3_backtest.py, etc.) que se ejecuta en su propio proceso; si uno falla, el pipeline se corta.
+Cada paso es un comando (`python -m top3 <comando>`) que se ejecuta en su propio proceso; si uno falla, el pipeline
+se corta.
 Períodos, plazos y universos salen de config.toml ([backtest] periods_years, [simulation] months,
 [universe] sweep_min_cap_billions).
 """
@@ -47,17 +48,17 @@ def build_steps(cfg: Config, args):
     if not args.skip_backtest:
         years = ["--years", f"{args.years:g}"] if args.years else []
         steps.append(("Backtest: períodos x plazos x universos (sweep + offsets)",
-                      [py, "top3_backtest.py", "--sweep", *config, *cache(), *years]))
+                      [py, "-m", "top3", "backtest", "--sweep", *config, *cache(), *years]))
     if not args.skip_actual:
         for level in levels:
             name = f"Top actual - {'índice completo' if not level else f'cap. >= US$ {level:g} B'}"
-            steps.append((name, [py, "top3_actual.py", *config, *cache(), *universe_args(level)]))
+            steps.append((name, [py, "-m", "top3", "actual", *config, *cache(), *universe_args(level)]))
     if not args.skip_etf:
-        steps.append(("Ranking de ETFs de Vanguard", [py, "top3_etf.py", *config]))
+        steps.append(("Ranking de ETFs de Vanguard", [py, "-m", "top3", "etf", *config]))
     if not args.skip_quant:
         steps.append(("Modelo por score: scores de momentum, salud y técnico, y Markowitz",
-                      [py, "top3_quant.py", *config, *cache()]))
-    steps.append(("Exportar JSON del frontend", [py, "export_frontend.py", *config]))
+                      [py, "-m", "top3", "quant", *config, *cache()]))
+    steps.append(("Exportar JSON del frontend", [py, "-m", "top3", "export", *config]))
     return steps
 
 

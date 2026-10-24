@@ -186,7 +186,7 @@ FRONTEND_PORT=3000 ./start.sh
 ```
 
 La página no pide nada al backend: lee `data/report.json`, el archivo estático que dejan al terminar
-`run_pipeline.py`, `top3_backtest.py`, `top3_actual.py` y `top3_etf.py` (también `export_frontend.py` a mano). Primero
+`run_pipeline.py`, `python -m top3 backtest`, `python -m top3 actual` y `python -m top3 etf` (también `python -m top3 export` a mano). Primero
 hay que haber corrido el pipeline al menos una vez. `npm run build` en `frontend/` genera la versión estática en
 `frontend/dist/`, que se puede publicar en cualquier hosting estático con el JSON de ese momento.
 
@@ -209,21 +209,21 @@ Cada paso corre en su propio proceso y, si uno falla, se corta. Al final imprime
 ### Scripts sueltos
 
 ```
-python top3_backtest.py                       # backtest normal (plazo de config.toml)
-python top3_backtest.py --months 3            # backtest normal con otro plazo
-python top3_backtest.py --sweep               # todo: 3 universos x (sweep + offsets) = 6 HTML
-python top3_backtest.py --sweep --large-cap   # solo ese universo (sweep + offsets)
-python top3_backtest.py --offsets             # solo el detalle de calendarios de arranque (universo completo)
-python top3_backtest.py --no-cache            # vuelve a descargar todo
-python top3_backtest.py --large-cap           # solo large-cap + mega-cap (>= 10 B)
-python top3_backtest.py --min-cap-billions 200  # solo mega-cap (>= 200 B)
-python top3_backtest.py --years 5             # un único período de 5 años
-python top3_backtest.py --config otro.toml    # otro archivo de configuración
-python top3_actual.py                         # Top N de hoy (plazo y top_n del config)
-python top3_actual.py --months 6 --top-n 3    # otro plazo / otra cantidad
-python top3_actual.py --min-cap-billions 200  # solo mega-cap
-python top3_etf.py                            # ranking de ETFs de Vanguard
-python prune_db.py                            # limpia a mano las corridas viejas de SQLite
+python -m top3 backtest                       # backtest normal (plazo de config.toml)
+python -m top3 backtest --months 3            # backtest normal con otro plazo
+python -m top3 backtest --sweep               # todo: 3 universos x (sweep + offsets) = 6 HTML
+python -m top3 backtest --sweep --large-cap   # solo ese universo (sweep + offsets)
+python -m top3 backtest --offsets             # solo el detalle de calendarios de arranque (universo completo)
+python -m top3 backtest --no-cache            # vuelve a descargar todo
+python -m top3 backtest --large-cap           # solo large-cap + mega-cap (>= 10 B)
+python -m top3 backtest --min-cap-billions 200  # solo mega-cap (>= 200 B)
+python -m top3 backtest --years 5             # un único período de 5 años
+python -m top3 backtest --config otro.toml    # otro archivo de configuración
+python -m top3 actual                         # Top N de hoy (plazo y top_n del config)
+python -m top3 actual --months 6 --top-n 3    # otro plazo / otra cantidad
+python -m top3 actual --min-cap-billions 200  # solo mega-cap
+python -m top3 etf                            # ranking de ETFs de Vanguard
+python -m top3 prune                            # limpia a mano las corridas viejas de SQLite
 python -m pytest                              # tests del backend (requiere requirements-dev.txt)
 ```
 
@@ -250,7 +250,7 @@ al arranque. Genera 6 HTML y al final lista las rutas. Si se pasa un filtro expl
   (N-1), la diferencia en puntos porcentuales y cuál gana en cada plazo. Las corridas del N-1 se guardan en SQLite
   con `skip_months = 1` y se ven en la pestaña *N-0 vs N-1*.
 
-### Top actual (`top3_actual.py`)
+### Top actual (`python -m top3 actual`)
 
 Aplica a hoy la misma lógica del backtest: toma la lista actual del S&P 500 (con los alias de tickers),
 calcula el retorno de las últimas N x 21 ruedas y muestra las `top_n` mejores con ponderación igual.
@@ -281,14 +281,14 @@ Además del Top, muestra:
 
 Correr el script dos veces con los mismos datos reemplaza el resultado en lugar de duplicarlo.
 
-### Modelo por score (`top3_quant.py`)
+### Modelo por score (`python -m top3 quant`)
 
 Un score para cada acción del S&P 500 actual, **sin backtest**: es una foto de hoy. Corre dentro del pipeline, deja todo en
 SQLite (`quant_runs`, `fundamentals` y `ohlcv`) y en el JSON que lee la web.
 
 ```
-python top3_quant.py             # ~1-2 minutos (baja datos financieros y OHLCV de ~500 empresas)
-python top3_quant.py --no-cache  # vuelve a descargar precios, OHLCV y datos financieros
+python -m top3 quant             # ~1-2 minutos (baja datos financieros y OHLCV de ~500 empresas)
+python -m top3 quant --no-cache  # vuelve a descargar precios, OHLCV y datos financieros
 ```
 
 1. **Score de momentum (0-100)**: promedio del ranking de cada acción en el retorno de 12 y de 6 meses, sin contar el último
@@ -341,17 +341,17 @@ Yahoo puede tener datos faltantes o desactualizados (el flujo de caja libre de l
 coincide con los estados anuales); los promedios de rankings tratan igual a todos los indicadores; y el
 S&P 500 actual no incluye a las empresas que salieron del índice.
 
-### ETFs de Vanguard (`top3_etf.py`)
+### ETFs de Vanguard (`python -m top3 etf`)
 
 Ranking global de momentum de los ETFs de Vanguard, **sin backtest**: qué ETFs tienen hoy (o a una fecha dada) más
 retorno por unidad de riesgo.
 
 ```
-python top3_etf.py                       # ranking de hoy; muestra el top de [etf] top_n
-python top3_etf.py --top-n 30            # más filas en la consola (el HTML siempre trae todos)
-python top3_etf.py --as-of 2025-06-30    # ranking con los datos hasta esa fecha
-python top3_etf.py --csv otra_lista.csv  # otra lista de ETFs (esa lista no se actualiza sola)
-python top3_etf.py --no-update           # no agrega los ETFs nuevos de Vanguard a la lista
+python -m top3 etf                       # ranking de hoy; muestra el top de [etf] top_n
+python -m top3 etf --top-n 30            # más filas en la consola (el HTML siempre trae todos)
+python -m top3 etf --as-of 2025-06-30    # ranking con los datos hasta esa fecha
+python -m top3 etf --csv otra_lista.csv  # otra lista de ETFs (esa lista no se actualiza sola)
+python -m top3 etf --no-update           # no agrega los ETFs nuevos de Vanguard a la lista
 python run_pipeline.py --skip-etf        # el pipeline lo incluye salvo que se omita
 ```
 
@@ -473,19 +473,19 @@ errores** agrupado por código, con cuántas veces ocurrió, un ejemplo y qué h
 | `fundamentals` | Últimos datos financieros descargados de cada empresa (JSON) y su fecha |
 | `ohlcv` | Apertura, máximo, mínimo, cierre ajustado y volumen diarios del último año y medio de cada acción del S&P 500 (para los indicadores técnicos) |
 | `quant_runs` | Último resultado del modelo por score (JSON: ranking y Markowitz) |
-| `actual_picks`, `actual_alternates` | Resultados de `top3_actual.py` (fecha de datos, plazo, ticker, retorno, precio, capitalización) y sus suplentes |
+| `actual_picks`, `actual_alternates` | Resultados de `python -m top3 actual` (fecha de datos, plazo, ticker, retorno, precio, capitalización) y sus suplentes |
 
 ### Limpieza de la base
 
 Cada backtest guarda cientos de corridas (parámetros, selecciones y curva de capital) y el informe solo usa la última de
 cada combinación del día más reciente. Para que la base no crezca sin límite:
 
-- Al terminar `top3_backtest.py` (y por lo tanto `run_pipeline.py`) se borran las corridas de más de
+- Al terminar `python -m top3 backtest` (y por lo tanto `run_pipeline.py`) se borran las corridas de más de
   `[data] runs_keep_days` días (contados desde el último día con corridas) y las que otra corrida del mismo día
   reemplaza: las que tienen el mismo universo, período, plazo, desfase y modelo (N-0 o N-1), que es lo que
   identifica una corrida en el informe. Es rápido, así que se hace en cada ejecución. Compactar el archivo
   (`VACUUM`) es lo lento: se hace como mucho una vez por día.
-- Para forzarlo a mano: `python prune_db.py` (o `--keep-days N`).
+- Para forzarlo a mano: `python -m top3 prune` (o `--keep-days N`).
 - No se toca `actual_picks` (historial del Top actual, que usa la comparación con la corrida anterior) ni los precios.
 
 ### Depuración
@@ -571,20 +571,20 @@ frontend/             # Aplicación web en Svelte 5 + Vite
 
 | Archivo | Para qué sirve |
 |---|---|
-| `backend/top3_backtest.py` | Backtest Point-in-Time, comparación de plazos y sensibilidad al calendario de arranque |
-| `backend/top3_actual.py` | Top N de hoy: las acciones del S&P 500 con mejor retorno en el plazo configurado |
-| `backend/top3_etf.py` | Ranking de momentum ajustado por riesgo de los ETFs de Vanguard (sin backtest) |
-| `backend/top3_quant.py` | Modelo por score: scores de momentum, de salud financiera y técnico del S&P 500 y Markowitz sobre las mejores (sin backtest) |
+| `python -m top3 backtest` | Backtest Point-in-Time, comparación de plazos y sensibilidad al calendario de arranque |
+| `python -m top3 actual` | Top N de hoy: las acciones del S&P 500 con mejor retorno en el plazo configurado |
+| `python -m top3 etf` | Ranking de momentum ajustado por riesgo de los ETFs de Vanguard (sin backtest) |
+| `python -m top3 quant` | Modelo por score: scores de momentum, de salud financiera y técnico del S&P 500 y Markowitz sobre las mejores (sin backtest) |
 | `backend/run_pipeline.py` | Pipeline completo: backtest (todos los períodos y universos) + Top actual de cada universo + ETFs + modelo por score + JSON del frontend |
-| `backend/prune_db.py` | Limpia a mano las corridas viejas de SQLite (se hace sola en cada backtest) |
-| `backend/export_frontend.py` | Escribe ese mismo JSON en `frontend/public/data/report.json` (lo hacen solos los scripts al terminar) |
+| `python -m top3 prune` | Limpia a mano las corridas viejas de SQLite (se hace sola en cada backtest) |
+| `python -m top3 export` | Escribe ese mismo JSON en `frontend/public/data/report.json` (lo hacen solos los scripts al terminar) |
 | `backend/data/`, `backend/output/`, `backend/log/` | Base SQLite, reportes HTML y logs; se crean solos |
 
 **Paquete `backend/top3/`**
 
 | Módulo | Responsabilidad |
 |---|---|
-| `config.py` | Valores por defecto, lectura de `config.toml` y `DataSettings` (parámetros de descarga) |
+| `config.py` | Configuración tipada: una dataclass por sección de `config.toml` (con los valores por defecto), validación de claves y `load_config` |
 | `db.py`, `logs.py` | Esquema y conexión SQLite; logging |
 | `constituents.py` | Composición Point-in-Time (CSV histórico + Wikipedia) |
 | `prices.py`, `shares.py` | Precios (descarga completa e incremental, con reintento ante rate limit) y acciones en circulación |

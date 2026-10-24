@@ -61,7 +61,7 @@
 
 {#if !rows.length}
   <p class="muted">
-    Sin resultados del modelo skip-month para este universo y período. Ejecute top3_backtest.py --sweep.
+    Sin resultados del modelo skip-month para este universo y período. Ejecute python -m top3 backtest --sweep.
   </p>
 {:else}
   <div class="best">

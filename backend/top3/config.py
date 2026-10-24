@@ -93,7 +93,7 @@ class OutputConfig:
 class EtfConfig:
     """[etf]: ranking de los ETFs de Vanguard."""
 
-    update_list: bool = True            # al correr top3_etf.py agrega a la lista los ETFs nuevos de Vanguard
+    update_list: bool = True            # al correr `top3 etf` agrega a la lista los ETFs nuevos de Vanguard
     list_url: str = "https://investor.vanguard.com/investment-products/list/funddetail/all"
     csv: str = "vanguard_etfs.csv"      # lista de ETFs de Vanguard (ticker, name, category)
     horizons_months: list[int] = field(default_factory=lambda: [3, 6, 12])  # el score es el promedio de los plazos

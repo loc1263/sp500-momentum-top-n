@@ -183,22 +183,22 @@
       {#if report.etf}
         <EtfView etf={report.etf} />
       {:else}
-        <p class="muted">Sin ranking de ETFs. Ejecute top3_etf.py.</p>
+        <p class="muted">Sin ranking de ETFs. Ejecute python -m top3 etf.</p>
       {/if}
     {:else if tab === 'quant'}
       {#if report.quant}
         <QuantView quant={report.quant} />
       {:else}
-        <p class="muted">Sin modelo por score. Ejecute top3_quant.py.</p>
+        <p class="muted">Sin modelo por score. Ejecute python -m top3 quant.</p>
       {/if}
     {:else if tab === 'actual'}
       {#if actual}
         <ActualView {actual} />
       {:else}
-        <p class="muted">Sin Top actual para «{label}». Ejecute top3_actual.py.</p>
+        <p class="muted">Sin Top actual para «{label}». Ejecute python -m top3 actual.</p>
       {/if}
     {:else if !universe}
-      <p class="muted">Sin backtest para «{label}». Ejecute top3_backtest.py --sweep.</p>
+      <p class="muted">Sin backtest para «{label}». Ejecute python -m top3 backtest --sweep.</p>
     {:else if tab === 'backtest'}
       {#key `${capKey}-${period.years}`}<BacktestView {universe} settings={report.settings} />{/key}
     {:else if tab === 'compare'}

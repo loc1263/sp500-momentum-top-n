@@ -1,4 +1,4 @@
-# Configuración de top3_backtest.py
+# Configuración de top3 (python -m top3 <comando>)
 
 [data]
 # Años de histórico a descargar (constituyentes + precios). Debe superar el mayor período de
@@ -94,7 +94,7 @@ frontend_data = "../frontend/public/data/report.json"
 months = [2, 4, 6, 8, 10, 12]
 
 [quant]
-# Modelo por score (top3_quant.py): score de momentum, de salud financiera y técnico de las acciones del S&P 500, su promedio
+# Modelo por score (python -m top3 quant): score de momentum, de salud financiera y técnico de las acciones del S&P 500, su promedio
 # como score final y Markowitz sobre las mejores. No hace backtest.
 # Peso de cada score en el final: momentum, salud financiera y técnico (1, 1, 1 = promedio simple)
 weights = [1, 1, 1]
