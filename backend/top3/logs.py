@@ -7,14 +7,14 @@ import sys
 import traceback
 from pathlib import Path
 
-from . import yahoo
+from . import termfmt, yahoo
 from .errors import CATALOG, CFG_MISSING, SYS_PYTHON_WARNING
 
 log = logging.getLogger("top3")
 log.setLevel(logging.DEBUG)
 
 FORMAT = "%(asctime)s [%(levelname)s] %(message)s"
-YELLOW, RED, GREEN, RESET = "\033[33m", "\033[31m", "\033[32m", "\033[0m"
+YELLOW, RED, GREEN, RESET = termfmt.YELLOW, termfmt.RED, termfmt.GREEN, termfmt.RESET
 _ansi_enabled = False
 
 
@@ -47,11 +47,25 @@ def paint(text: str, level: int) -> str:
     return f"{RED if level >= logging.ERROR else YELLOW}{text}{RESET}"
 
 
+_PREFIX = re.compile(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}) \[(\w+)\]")
+_CODE_TOKEN = re.compile(r"TOP-[A-Z]{3}-\d{3}")
+
+
 class ConsoleFormatter(logging.Formatter):
-    """Formato de la consola: la línea completa (con el traceback, si lo hay) se pinta según el nivel."""
+    """Formato de la consola: las líneas largas se parten en el ancho máximo y se pintan según el nivel. Avisos en
+    amarillo y errores en rojo (toda la línea); en los demás la hora va atenuada, el nivel en cian y los códigos
+    TOP-XXX-NNN resaltados."""
 
     def format(self, record: logging.LogRecord) -> str:
-        return paint(super().format(record), record.levelno)
+        lines = termfmt.wrap(super().format(record))
+        if not stderr_color():
+            return "\n".join(lines)
+        if record.levelno >= logging.WARNING:
+            return "\n".join(paint(line, record.levelno) for line in lines)
+        first = _PREFIX.sub(lambda m: f"{termfmt.color(m.group(1), termfmt.DIM)} [{termfmt.color(m.group(2), termfmt.CYAN)}]",
+                            lines[0], count=1)
+        lines[0] = first
+        return "\n".join(_CODE_TOKEN.sub(lambda m: termfmt.color(m.group(0), termfmt.BOLD), line) for line in lines)
 
 
 def _excepthook(exc_type, exc, tb) -> None:
@@ -95,11 +109,13 @@ def format_summary(items: list[dict], logfile: str | None = None) -> list[str]:
         kind = "ERROR" if item["level"] >= logging.ERROR else "AVISO"
         title = entry.title if entry else item["sample"]
         steps = f"  [{', '.join(item['steps'])}]" if item.get("steps") else ""
-        lines.append(paint(f"  {kind:<5} {item['code']}  x{item['count']}  {title}{steps}", item["level"]))
+        lines += [paint(line, item["level"]) for line in
+                  termfmt.wrap(f"  {kind:<5} {item['code']}  x{item['count']}  {title}{steps}", indent=" " * 8)]
         if entry:
-            lines.append(f"        ej.: {item['sample'][len(item['code']) + 2:]}")
-            lines.append(f"        qué hacer: {entry.action}")
-    lines.append(f"  Detalle: {logfile or 'log/'}  (buscar por código, p. ej. grep {ordered[0]['code']})")
+            lines += termfmt.wrap(f"        ej.: {item['sample'][len(item['code']) + 2:]}", indent=" " * 16)
+            lines += termfmt.wrap(f"        qué hacer: {entry.action}", indent=" " * 8)
+    lines += termfmt.wrap(f"  Detalle: {logfile or 'log/'}  (buscar por código, p. ej. grep {ordered[0]['code']})",
+                          indent=" " * 4)
     return lines
 
 
