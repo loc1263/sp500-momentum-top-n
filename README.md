@@ -5,7 +5,7 @@ subieron en los últimos N meses. El proyecto la evalúa con datos históricos (
 depende del mes de arranque y muestra los resultados en una aplicación web local.
 
 Además calcula el **Top actual** (qué acciones lidera hoy el ranking, con sus suplentes, los cambios respecto de la
-corrida anterior y el próximo rebalanceo) y un **ranking de momentum de los ETFs de Vanguard** ajustado por riesgo.
+corrida anterior y el próximo rebalanceo) un **ranking de momentum de los ETFs de Vanguard** ajustado por riesgo y un **modelo base** que da a cada acción del S&P 500 un score de momentum, otro de salud financiera y otro técnico, su promedio como score final, y Markowitz sobre las mejores.
 
 > **Aviso:** es una herramienta de análisis, no una recomendación de inversión. El backtest cobra solo una comisión
 > de 0,05% por lado, sin impuestos, y tiene sesgos de datos (ver [Limitaciones](#limitaciones)).
@@ -18,6 +18,7 @@ corrida anterior y el próximo rebalanceo) y un **ranking de momentum de los ETF
 | **Comparación N-0 vs. N-1**: el modelo de siempre frente a una variante *skip-month* que ignora el último mes al rankear, plazo por plazo | Pestaña *N-0 vs N-1* |
 | **Top actual**: las N acciones con mejor retorno hoy, cuatro suplentes, qué entra y qué sale, próximo rebalanceo | Pestaña *Top actual* |
 | **ETFs de Vanguard**: ranking por retorno ajustado por riesgo, con tendencia y caída máxima | Pestaña *ETFs Vanguard* |
+| **Modelo base**: score de momentum, de salud financiera y técnico de las ~500 acciones del S&P 500, su promedio como score final y Markowitz sobre las 10 mejores (sin backtest) | Pestaña *Modelo base* |
 | **About**: qué se muestra en cada pestaña, de dónde salen los datos, qué incluyen los resultados y sus límites | Pestaña *About* |
 | Reportes por consola y en HTML, con códigos de error estables (`TOP-BKT-003`, ...) | `backend/output/` y [Códigos de error](#códigos-de-error-y-aviso) |
 
@@ -59,7 +60,7 @@ python run_pipeline.py
 cd ..
 ```
 
-Este comando descarga los precios, ejecuta el backtest y el Top actual, calcula el ranking de ETFs y deja todo
+Este comando descarga los precios, ejecuta el backtest y el Top actual, calcula el ranking de ETFs y el modelo base y deja todo
 guardado en una base SQLite local (`backend/data/`). **La primera vez tarda varios minutos** (descarga más de diez
 años de precios); las siguientes ejecuciones son mucho más rápidas porque solo actualizan lo que falta.
 
@@ -202,6 +203,7 @@ python run_pipeline.py --years 7        # backtest de un único período
 python run_pipeline.py --skip-backtest  # solo Top actual + JSON (rápido)
 python run_pipeline.py --skip-actual    # omite el Top actual
 python run_pipeline.py --skip-etf       # omite el ranking de ETFs
+python run_pipeline.py --skip-quant     # omite el modelo base
 ```
 
 Cada paso corre en su propio proceso y, si uno falla, se corta. Al final imprime el tiempo de cada paso.
@@ -281,6 +283,66 @@ Además del Top, muestra:
 
 Correr el script dos veces con los mismos datos reemplaza el resultado en lugar de duplicarlo.
 
+### Modelo base (`top3_quant.py`)
+
+Un score para cada acción del S&P 500 actual, **sin backtest**: es una foto de hoy. Corre dentro del pipeline, deja todo en
+SQLite (`quant_runs`, `fundamentals` y `ohlcv`) y en el JSON que lee la web.
+
+```
+python top3_quant.py             # ~1-2 minutos (baja datos financieros y OHLCV de ~500 empresas)
+python top3_quant.py --no-cache  # vuelve a descargar precios, OHLCV y datos financieros
+```
+
+1. **Score de momentum (0-100)**: promedio del ranking de cada acción en el retorno de 12 y de 6 meses, sin contar el último
+   mes (momentum 12-1 y 6-1), entre todas las que tienen un año completo de precios.
+2. **Score de salud financiera (0-100)**: se bajan de Yahoo Finance los indicadores de los últimos estados financieros de
+   cada empresa (se reutilizan `[quant] fundamentals_ttl_days` días) y se rankean en cuatro grupos; cada grupo promedia su
+   ranking en los indicadores que tenga y la salud promedia los grupos disponibles:
+   - *Rentabilidad*: ROE, ROA, margen operativo y margen neto.
+   - *Solvencia*: deuda/patrimonio, deuda neta/EBITDA y caja/deuda (menos deuda es mejor; patrimonio negativo o EBITDA no
+     positivo con deuda neta cuentan como lo peor).
+   - *Liquidez*: liquidez corriente y prueba ácida.
+   - *Generación de caja*: flujo de caja libre (FCF) y flujo operativo sobre ventas, FCF sobre la capitalización, conversión de
+     la utilidad en caja (FCF / utilidad neta, entre -100% y 200%; sin utilidad positiva no se mide), flujo operativo sobre la
+     deuda y consistencia (parte de los últimos 4 años, de los estados anuales, con FCF positivo; hacen falta al menos 3).
+     Una empresa que genera caja de forma sostenida es más confiable, así que este grupo pesa el doble en la salud
+     (`[quant] health_weights`, en el orden rentabilidad, solvencia, liquidez y caja).
+
+   Los bancos y aseguradoras (sector *Financial Services* sin liquidez corriente informada) no tienen deuda neta, liquidez ni flujo de caja comparables, así que
+   solo se miden con rentabilidad. El selector «Detalle» de la tabla de la web muestra, en lugar de los indicadores, el score (0-100) de
+   cada grupo de salud (y los «Grupos medidos», de 4) o de cada grupo técnico.
+3. **Score técnico (0-100)**: se bajan de Yahoo los precios de apertura, máximo, mínimo y cierre ajustados y el volumen del
+   último año y medio (se guardan en `ohlcv` y se renuevan una vez por día). Cada indicador se traduce a una señal de 0 a 1
+   (1 = lo más alcista); las señales se promedian en cuatro grupos y el score es la posición de la acción según el
+   promedio de los grupos:
+   - *Tendencia*: precio sobre las EMA de 20, 50 y 200, EMA 20 sobre la 50 y la 50 sobre la 200, y dirección y fuerza de la
+     tendencia (ADX de 14 con +DI y -DI).
+   - *Impulso*: MACD (12, 26, 9: línea sobre la señal, línea sobre cero e histograma creciente), RSI de 14, estocástico lento
+     (14, 3) y posición en las bandas de Bollinger (20, 2).
+   - *Volumen*: OBV sobre su EMA de 20 y sobre su nivel de hace 20 ruedas, y MFI de 14.
+   - *Posición*: cercanía al máximo de 52 semanas y lugar dentro del rango de 52 semanas.
+
+   El RSI, el estocástico y el MFI no premian cualquier valor alto: favorecen la zona alcista (hasta 70, 80 y 70) y penalizan
+   levemente la sobrecompra. Se calculan con una implementación propia (RSI y MACD coinciden con una referencia escrita a
+   mano en los tests).
+4. **Score final**: promedio de los tres (`[quant] weights` permite darles otro peso). La tabla definitiva ordena por él (las
+   acciones sin momentum, por tener menos de un año de precios, sin datos financieros o sin datos técnicos quedan fuera y
+   se listan).
+5. **Markowitz** sobre las `top_n` (10) primeras, sin posiciones cortas y con un máximo de `w_max` por acción y de `sector_max` por sector (el sector sale de Yahoo; si con los
+   sectores de las 10 acciones no se puede invertir todo, el tope se sube lo mínimo necesario y la web lo avisa). Tres carteras: máximo
+   retorno con volatilidad anual de hasta `vol_target`, máximo Sharpe y mínima varianza (si el riesgo objetivo es menor que la
+   mínima volatilidad posible, la primera se omite y la web lo avisa). La covarianza es la de Ledoit-Wolf de los últimos 252
+   días; el retorno esperado de cada acción es su retorno de los últimos 252 días (limitado a ±100%) con un peso de
+   `mu_shrink` más el resto en un retorno de largo plazo (`risk_free` + `equity_premium`), porque el retorno pasado de una
+   sola acción es muy ruidoso y el de las líderes de momentum, desmesurado. **Los retornos esperados son una suposición: los
+   pesos salen sobre todo del riesgo y deben leerse como orientativos.**
+
+Límites: los datos financieros son una foto (no hay histórico, así que no se puede probar si el score habría funcionado); los
+indicadores técnicos de tendencia se parecen mucho al momentum, así que el score final pesa dos veces ideas parecidas;
+Yahoo puede tener datos faltantes o desactualizados (el flujo de caja libre de los últimos 12 meses, en particular, a veces no
+coincide con los estados anuales); los promedios de rankings tratan igual a todos los indicadores; y el
+S&P 500 actual no incluye a las empresas que salieron del índice.
+
 ### ETFs de Vanguard (`top3_etf.py`)
 
 Ranking global de momentum de los ETFs de Vanguard, **sin backtest**: qué ETFs tienen hoy (o a una fecha dada) más
@@ -350,7 +412,7 @@ incluido puede traer otros (por ejemplo más períodos y plazos en `[simulation]
 | | `backtest_subdir`, `actual_subdir`, `etf_subdir` | `"backtest"`, `"actual"`, `"etf"` | Subcarpetas dentro de `dir` |
 | | `backtest_prefix`, `sweep_prefix`, `offsets_prefix`, `actual_prefix`, `etf_prefix` | `top3_*` | Prefijos de los archivos HTML |
 | | `log_dir` | `"log"` | Carpeta de los logs |
-| | `backtest_log`, `actual_log`, `etf_log` | `top3_*.log` | Nombres de los archivos de log |
+| | `backtest_log`, `actual_log`, `etf_log`, `quant_log` | `top3_*.log` | Nombres de los archivos de log |
 | `[etf]` | `update_list` | `true` | Al correr el ranking de ETFs, agrega a la lista los ETFs nuevos que Vanguard publica (nunca borra ni edita filas) |
 | | `list_url` | página de productos de Vanguard | Servicio del que se baja la lista de ETFs de Vanguard |
 | | `csv` | `"vanguard_etfs.csv"` | Lista de ETFs de Vanguard (columnas `ticker`, `name`, `category`) |
@@ -358,6 +420,12 @@ incluido puede traer otros (por ejemplo más períodos y plazos en `[simulation]
 | | `top_n` | `15` | Cuántos ETFs se muestran en la consola (el HTML trae todos) |
 | | `min_vol` | `0.01` | Volatilidad anual mínima para entrar al ranking (1%): los ETFs por debajo son de tipo efectivo (letras del Tesoro, bonos ultracortos) y quedan fuera; `0` = rankear todos |
 | | `risk_free_ticker` | `"VUSB"` | ETF cuyo retorno se resta al de cada ETF (referencia libre de riesgo); `""` = no restar |
+| `[quant]` | `weights` | `[1, 1, 1]` | Peso de cada score en el final: momentum, salud financiera y técnico |
+| | `health_weights` | `[1, 1, 1, 2]` | Peso de cada grupo en el score de salud: rentabilidad, solvencia, liquidez y caja (un grupo sin datos no cuenta) |
+| | `top_n` | `10` | Acciones del ranking final sobre las que corre Markowitz |
+| | `vol_target`, `w_max`, `sector_max` | `0.20`, `0.25`, `0.40` | Volatilidad anual máxima de la cartera de máximo retorno, y peso máximo por acción y por sector |
+| | `mu_shrink`, `risk_free`, `equity_premium` | `0.25`, `0.04`, `0.05` | Retorno esperado = `mu_shrink` x retorno de los últimos 12 meses + el resto x (`risk_free` + `equity_premium`); `risk_free` también para el Sharpe |
+| | `fundamentals_ttl_days` | `7` | Días que se reutilizan los datos financieros descargados |
 | `[simulation]` | `months` | `[3, 4, 6, 8, 12]` | Plazos que comparan `--sweep` y `--offsets` |
 
 ## Salidas y depuración
@@ -405,6 +473,9 @@ errores** agrupado por código, con cuántas veces ocurrió, un ejemplo y qué h
 | `meta` | Fechas de descarga y rango de precios (control del caché) |
 | `runs`, `selections`, `equity` | Cada corrida: parámetros, selecciones y curva de capital |
 | `etf_scores` | Ranking de ETFs de Vanguard por corrida (fecha de datos, posición, score, volatilidad, caída máxima, distancia a la SMA200, retornos por plazo) |
+| `fundamentals` | Últimos datos financieros descargados de cada empresa (JSON) y su fecha |
+| `ohlcv` | Apertura, máximo, mínimo, cierre ajustado y volumen diarios del último año y medio de cada acción del S&P 500 (para los indicadores técnicos) |
+| `quant_runs` | Último resultado del modelo base (JSON: ranking y Markowitz) |
 | `actual_picks`, `actual_alternates` | Resultados de `top3_actual.py` (fecha de datos, plazo, ticker, retorno, precio, capitalización) y sus suplentes |
 
 ### Limpieza de la base
@@ -445,6 +516,7 @@ Formato: `TOP-<ÁREA>-<NNN>`.
 | `BKT` | Backtest |
 | `ACT` | Top actual |
 | `ETF` | Ranking de ETFs de Vanguard |
+| `QNT` | Modelo base |
 | `API` | Servidor HTTP (también viaja como `code` en la respuesta 500 de `/api/report`) |
 | `SYS` | Avisos de Python capturados (pandas, yfinance...) |
 
@@ -468,6 +540,8 @@ Para buscar en el log: `grep TOP-BKT backend/log/top3_backtest.log`.
 | `TOP-DAT-002` | Aviso | Sin composición histórica para esa fecha | Esa fecha queda sin constituyentes; revisa history_years y el CSV histórico. |
 | `TOP-DAT-003` | Aviso | Sin dato de acciones en circulación para algunos tickers | Su capitalización queda en n/d y no entran en un universo filtrado por capitalización. |
 | `TOP-DAT-004` | Error | No hay lista actual del S&P 500 | No se descargó ni existe en SQLite. Corre con conexión a internet. |
+| `TOP-DAT-005` | Aviso | Sin datos financieros para algunos tickers | Quedan fuera del score de salud y del ranking final; suele ser un límite de Yahoo o un ticker nuevo. Vuelve a correr más tarde. |
+| `TOP-DAT-006` | Aviso | Sin precios de apertura, máximo, mínimo o volumen para algunos tickers | Quedan fuera del score técnico y del ranking final; suele ser un límite de Yahoo o un ticker nuevo. Vuelve a correr más tarde. |
 | `TOP-BKT-001` | Error | El backtest no generó ningún rebalanceo | Revisa las fechas, el histórico descargado y que el universo no sea demasiado chico. |
 | `TOP-BKT-002` | Aviso | Sin constituyentes en la fecha de rebalanceo | Se omite ese rebalanceo. |
 | `TOP-BKT-003` | Aviso | Pocos tickers disponibles en la fecha de rebalanceo | Se omiten esos rebalanceos (menos de 10 candidatos); se avisa una vez por universo y período con el rango de fechas. Frecuente en mega-cap con períodos largos. |
@@ -483,13 +557,14 @@ Para buscar en el log: `grep TOP-BKT backend/log/top3_backtest.log`.
 | `TOP-ETF-005` | Aviso | La referencia libre de riesgo no está disponible | El score se calcula sin restarla (los ETFs casi sin riesgo quedan arriba). Revisa [etf] risk_free_ticker: debe estar en la lista y tener historia completa. |
 | `TOP-ETF-006` | Aviso | No se pudo actualizar la lista de ETFs de Vanguard | Se usa la lista guardada en el CSV. Revisa la conexión; si Vanguard cambió el formato de su respuesta hay que ajustar `top3/vanguard.py`. Con `--no-update` o `[etf] update_list = false` no se intenta. |
 | `TOP-API-001` | Error | Error armando /api/report | Revisa que exista la base SQLite y que se haya corrido el pipeline al menos una vez. |
+| `TOP-QNT-001` | Error | No hay acciones suficientes para el ranking del modelo base | Descarga más historia (`--no-cache`) o baja `[quant] top_n`; revisa también `TOP-DAT-005`. |
 | `TOP-SYS-001` | Aviso | Aviso de Python (pandas, yfinance u otra librería) | El mensaje original trae el archivo y la línea. |
 
 ## Estructura y desarrollo
 
 ```
 start.ps1 / start.sh  # levantan backend + frontend (Windows / macOS y Linux)
-backend/              # Python: backtest, Top actual, ranking de ETFs, base SQLite y API HTTP
+backend/              # Python: backtest, Top actual, ranking de ETFs, modelo base, base SQLite y API HTTP
   config.toml         # configuración
   vanguard_etfs.csv   # lista de ETFs de Vanguard (se mantiene a mano)
   top3/               # paquete con la lógica; los scripts de la raíz de backend/ son solo la línea de comandos
@@ -502,7 +577,8 @@ frontend/             # Aplicación web en Svelte 5 + Vite
 | `backend/top3_backtest.py` | Backtest Point-in-Time, comparación de plazos y sensibilidad al calendario de arranque |
 | `backend/top3_actual.py` | Top N de hoy: las acciones del S&P 500 con mejor retorno en el plazo configurado |
 | `backend/top3_etf.py` | Ranking de momentum ajustado por riesgo de los ETFs de Vanguard (sin backtest) |
-| `backend/run_pipeline.py` | Pipeline completo: backtest (todos los períodos y universos) + Top actual de cada universo + JSON del frontend |
+| `backend/top3_quant.py` | Modelo base: scores de momentum, de salud financiera y técnico del S&P 500 y Markowitz sobre las mejores (sin backtest) |
+| `backend/run_pipeline.py` | Pipeline completo: backtest (todos los períodos y universos) + Top actual de cada universo + ETFs + modelo base + JSON del frontend |
 | `backend/server.py` | API HTTP opcional: `GET /api/report` (el mismo JSON, leído de SQLite). La web no la usa |
 | `backend/prune_db.py` | Limpia a mano las corridas viejas de SQLite (se hace sola en cada backtest) |
 | `backend/export_frontend.py` | Escribe ese mismo JSON en `frontend/public/data/report.json` (lo hacen solos los scripts al terminar) |
@@ -528,6 +604,7 @@ frontend/             # Aplicación web en Svelte 5 + Vite
 | `rotation.py` | Top actual: cambios contra la corrida anterior y próximo rebalanceo |
 | `workflow.py`, `actual.py` | Flujos completos: backtest normal / sweep / offsets y Top actual |
 | `report_data.py`, `api.py` | JSON del frontend y API HTTP |
+| `quant/` | Modelo base: `momentum.py` (momentum 12-1 y 6-1 y su score), `fundamentals.py` (datos financieros de Yahoo y score de salud), `ohlcv.py` (precios y volumen diarios) y `technical.py` (indicadores y score técnico), `markowitz.py` (covarianza, retornos esperados y carteras) y `run.py` (orquestación y guardado) |
 | `errors.py` | Catálogo de códigos de error y aviso |
 
 **Frontend (`frontend/src/`)**
@@ -540,6 +617,7 @@ frontend/             # Aplicación web en Svelte 5 + Vite
 | `lib/SweepView.svelte` | Comparación de plazos y sensibilidad al arranque |
 | `lib/CompareView.svelte` | Modelo de siempre (N-0) frente al skip-month (N-1), plazo por plazo y por mitades del período |
 | `lib/EtfView.svelte` | Ranking de ETFs de Vanguard |
+| `lib/QuantView.svelte` | Modelo base: top 10 con Markowitz y ranking completo con filtros |
 | `lib/AboutView.svelte` | Pestaña About: qué se muestra en la aplicación, fuentes de datos y límites |
 | `lib/Chart.svelte`, `Range.svelte`, `TickerLink.svelte`, `Glossary.svelte` | Componentes compartidos |
 | `lib/Bunny.svelte` | Detalle decorativo: un conejo que pasea por el pie de la pantalla, se aleja del cursor y saluda al hacer clic (se desactiva con «reducir movimiento» del sistema) |

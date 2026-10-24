@@ -44,28 +44,28 @@ def test_actual_args():
 
 def test_pipeline_steps(cfg):
     class Args:
-        config, no_cache, years, tests, skip_backtest, skip_actual, skip_etf = (
-            "config.toml", True, 7.0, True, False, False, False)
+        config, no_cache, years, tests, skip_backtest, skip_actual, skip_etf, skip_quant = (
+            "config.toml", True, 7.0, True, False, False, False, False)
 
     steps = run_pipeline.build_steps(cfg, Args)
     names = [n for n, _ in steps]
     assert names[0] == "Tests" and names[-1] == "Exportar JSON del frontend"
-    assert len(steps) == 1 + 1 + 3 + 1 + 1                     # tests + backtest + 3 universos + ETFs + export
-    assert "Ranking de ETFs de Vanguard" in names
+    assert len(steps) == 1 + 1 + 3 + 1 + 1 + 1                 # tests + backtest + 3 universos + ETFs + modelo base + export
+    assert "Ranking de ETFs de Vanguard" in names and any(n.startswith("Modelo base") for n in names)
     backtest = steps[1][1]
     assert "--sweep" in backtest and "--no-cache" in backtest and backtest[backtest.index("--years") + 1] == "7"
     actual_cmds = [c for n, c in steps if n.startswith("Top actual")]
     assert [("--min-cap-billions" in c) for c in actual_cmds] == [False, True, True]
 
-    Args.skip_backtest = Args.skip_actual = Args.skip_etf = True
+    Args.skip_backtest = Args.skip_actual = Args.skip_etf = Args.skip_quant = True
     Args.tests = False
     assert [n for n, _ in run_pipeline.build_steps(cfg, Args)] == ["Exportar JSON del frontend"]
 
 
 def test_pipeline_passes_no_cache_only_to_the_first_downloading_step(cfg):
     class Args:
-        config, no_cache, years, tests, skip_backtest, skip_actual, skip_etf = (
-            "config.toml", True, None, False, False, False, True)
+        config, no_cache, years, tests, skip_backtest, skip_actual, skip_etf, skip_quant = (
+            "config.toml", True, None, False, False, False, True, True)
 
     steps = run_pipeline.build_steps(cfg, Args)
     flags = {name: "--no-cache" in cmd for name, cmd in steps}

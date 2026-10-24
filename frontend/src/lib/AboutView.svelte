@@ -24,11 +24,16 @@
       tab: 'ETFs Vanguard',
       text: 'Un ranking aparte, sin backtest: los ETFs de Vanguard ordenados por cuánto subieron por unidad de riesgo (retorno ajustado por volatilidad en 3, 6 y 12 meses, descontando la referencia libre de riesgo), con su tendencia y caída máxima. Los ETFs de tipo efectivo (letras del Tesoro, bonos ultracortos) no entran al ranking.',
     },
+    {
+      tab: 'Modelo base',
+      text: 'Un score por acción para todo el S&P 500, sin backtest: uno de momentum (retorno de 12 y de 6 meses sin el último mes), otro de salud financiera (rentabilidad, solvencia, liquidez y generación de caja, con los últimos datos publicados; la caja pesa el doble porque una empresa que genera caja de forma sostenida es más confiable), otro técnico (medias móviles, ADX, MACD, RSI, estocástico, Bollinger, OBV, MFI y rango de 52 semanas) y el promedio de los tres como score final. Sobre las 10 mejores se calcula Markowitz (máximo retorno con volatilidad acotada, máximo Sharpe y mínima varianza). Es una foto de hoy: los retornos esperados de Markowitz son una suposición y los pesos son orientativos.',
+    },
   ];
 
   const sources = [
     ['Precios', 'Yahoo Finance (precios ajustados por dividendos y splits).'],
     ['Composición del S&P 500', 'CSV histórico del repositorio hanshof/sp500_constituents y las altas y bajas de Wikipedia: en cada fecha del backtest solo compiten las empresas que estaban en el índice ese día (Point-in-Time).'],
+    ['Datos financieros y técnicos', 'Yahoo Finance: indicadores de los últimos estados financieros de cada empresa y precios (apertura, máximo, mínimo, cierre) y volumen del último año y medio.'],
     ['Lista de ETFs de Vanguard', 'La página de productos de Vanguard; los ETFs nuevos se agregan solos a la lista.'],
   ];
 
@@ -36,6 +41,7 @@
     'Sesgo de supervivencia: las empresas que ya no cotizan no tienen precios en Yahoo y quedan fuera, así que los retornos probablemente están inflados.',
     'La capitalización de los universos large-cap y mega-cap se aproxima con las acciones en circulación de hoy, lo que adelanta la entrada de empresas que hoy son grandes.',
     'Pocas decisiones: en 5 años hay entre 5 y 20 rebalanceos por plazo, y el resultado depende de unas pocas rachas.',
+    'Modelo base: los datos financieros de Yahoo son una foto de los últimos publicados (no hay histórico), y sin backtest no se sabe si este score habría funcionado; los bancos y aseguradoras se miden solo con rentabilidad.',
     'No incluye impuestos ni deslizamiento (la diferencia entre el precio de cierre y el que realmente se obtiene).',
   ];
 </script>

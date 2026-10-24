@@ -100,3 +100,25 @@ cors_origin = "*"
 # Plazos (en meses) a comparar con --sweep. Cada plazo N usa un ranking de N meses
 # hacia atrás y rebalancea cada N meses (ignora "months" de [backtest]).
 months = [2, 4, 6, 8, 10, 12]
+
+[quant]
+# Modelo base (top3_quant.py): score de momentum, de salud financiera y técnico de las acciones del S&P 500, su promedio
+# como score final y Markowitz sobre las mejores. No hace backtest.
+# Peso de cada score en el final: momentum, salud financiera y técnico (1, 1, 1 = promedio simple)
+weights = [1, 1, 1]
+# Peso de cada grupo en el score de salud: rentabilidad, solvencia, liquidez y generación de caja (la caja pesa el doble:
+# una empresa que genera caja de forma sostenida es más confiable)
+health_weights = [1, 1, 1, 2]
+# Acciones del ranking final sobre las que corre Markowitz
+top_n = 10
+# Volatilidad anual máxima de la cartera de máximo retorno, y peso máximo por acción y por sector
+vol_target = 0.20
+w_max = 0.25
+sector_max = 0.40
+# Retorno esperado de cada acción = mu_shrink x su retorno de los últimos 12 meses + el resto x (tasa libre de riesgo +
+# prima de mercado): el retorno pasado de una sola acción es muy ruidoso
+mu_shrink = 0.25
+risk_free = 0.04
+equity_premium = 0.05
+# Días que se reutilizan los datos financieros descargados (cambian por trimestre)
+fundamentals_ttl_days = 7

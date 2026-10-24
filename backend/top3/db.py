@@ -40,6 +40,12 @@ CREATE TABLE IF NOT EXISTS etf_scores (
     run_at TEXT, as_of TEXT, rank INTEGER, ticker TEXT, score REAL, vol REAL, max_dd REAL, sma_dist REAL,
     returns TEXT
 );
+CREATE TABLE IF NOT EXISTS fundamentals (ticker TEXT PRIMARY KEY, fetched TEXT, data TEXT);
+CREATE TABLE IF NOT EXISTS ohlcv (
+    ticker TEXT NOT NULL, date TEXT NOT NULL, open REAL, high REAL, low REAL, close REAL NOT NULL, volume REAL,
+    PRIMARY KEY (ticker, date)
+);
+CREATE TABLE IF NOT EXISTS quant_runs (run_at TEXT PRIMARY KEY, as_of TEXT, payload TEXT);
 CREATE INDEX IF NOT EXISTS idx_selections_run ON selections (run_id);
 CREATE INDEX IF NOT EXISTS idx_equity_run ON equity (run_id);
 CREATE INDEX IF NOT EXISTS idx_runs_run_at ON runs (run_at);

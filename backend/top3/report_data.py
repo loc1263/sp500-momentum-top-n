@@ -216,6 +216,12 @@ def _etf(conn: sqlite3.Connection, cfg: dict) -> dict | None:
             "rows": rows}
 
 
+def _quant(conn: sqlite3.Connection) -> dict | None:
+    """Último resultado guardado del modelo cuantitativo (ya es un JSON armado por top3.quant)."""
+    row = conn.execute("SELECT payload FROM quant_runs ORDER BY run_at DESC LIMIT 1").fetchone()
+    return json.loads(row[0]) if row else None
+
+
 def build_report(conn: sqlite3.Connection, cfg: dict) -> dict:
     bt = cfg["backtest"]
     initial_capital = float(bt["initial_capital"])
@@ -236,6 +242,7 @@ def build_report(conn: sqlite3.Connection, cfg: dict) -> dict:
                      "periods_years": sorted({p["years"] for u in backtest for p in u["periods"]})},
         "actual": _actual(conn),
         "etf": _etf(conn, cfg),
+        "quant": _quant(conn),
         "backtest": backtest,
         "backtest_skip": backtest_skip,
     }

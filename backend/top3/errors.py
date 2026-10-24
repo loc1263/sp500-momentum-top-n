@@ -62,6 +62,12 @@ DAT_NO_SHARES = _code("TOP-DAT-003", "warning", "Sin dato de acciones en circula
                       "Su capitalización queda en n/d y no entran en un universo filtrado por capitalización.")
 DAT_NO_CURRENT = _code("TOP-DAT-004", "error", "No hay lista actual del S&P 500",
                        "No se descargó ni existe en SQLite. Corre con conexión a internet.")
+DAT_NO_OHLCV = _code("TOP-DAT-006", "warning", "Sin precios de apertura, máximo, mínimo o volumen para algunos tickers",
+                     "Quedan fuera del score técnico y del ranking final; suele ser un límite de Yahoo o un ticker nuevo. "
+                     "Vuelve a correr más tarde.")
+DAT_NO_FUNDAMENTALS = _code("TOP-DAT-005", "warning", "Sin datos financieros para algunos tickers",
+                            "Quedan fuera del score de salud y del ranking final; suele ser un límite de Yahoo o un ticker "
+                            "nuevo. Vuelve a correr más tarde.")
 
 # Backtest
 BKT_EMPTY = _code("TOP-BKT-001", "error", "El backtest no generó ningún rebalanceo",
@@ -100,6 +106,10 @@ ETF_NO_RISK_FREE = _code("TOP-ETF-005", "warning", "La referencia libre de riesg
 ETF_LIST_UPDATE = _code("TOP-ETF-006", "warning", "No se pudo actualizar la lista de ETFs de Vanguard",
                         "Se usa la lista guardada en el CSV. Revisa la conexión; si Vanguard cambió el formato de su "
                         "respuesta hay que ajustar top3/vanguard.py. Con --no-update o [etf] update_list = false no se intenta.")
+
+# Modelo cuantitativo
+QNT_NO_SIGNAL = _code("TOP-QNT-001", "error", "No hay acciones suficientes para el ranking del modelo base",
+                      "Descarga más historia (--no-cache) o baja [quant] top_n; revisa también TOP-DAT-005.")
 
 # Servidor
 API_REPORT = _code("TOP-API-001", "error", "Error armando /api/report",

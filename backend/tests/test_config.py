@@ -274,7 +274,7 @@ def test_pipeline_step_titles_and_summary_are_green(monkeypatch):
     monkeypatch.delenv("NO_COLOR", raising=False)
     monkeypatch.setattr(sys, "stdout", out)
     monkeypatch.setattr(sys, "argv", ["run_pipeline.py", "--config", "no_existe.toml", "--skip-backtest",
-                                      "--skip-actual", "--skip-etf"])
+                                      "--skip-actual", "--skip-etf", "--skip-quant"])
     monkeypatch.setattr(run_pipeline.subprocess, "run", lambda *a, **k: type("R", (), {"returncode": 0})())
     with pytest.raises(SystemExit) as e:
         run_pipeline.main()

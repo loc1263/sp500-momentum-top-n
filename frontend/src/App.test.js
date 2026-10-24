@@ -69,6 +69,25 @@ describe('App', () => {
     await waitFor(() => expect(location.hash).toBe('#etf'));
   });
 
+  it('muestra el modelo base y oculta los filtros que no aplican', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => json(report)));
+    render(App);
+    await screen.findByText('NVDA');
+    await fireEvent.click(screen.getByRole('tab', { name: 'Modelo base' }));
+    expect(await screen.findByRole('heading', { name: 'Cómo se calcula' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Modelo base');
+    expect(screen.queryByLabelText('Universo')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Período')).not.toBeInTheDocument();
+    await waitFor(() => expect(location.hash).toBe('#quant'));
+  });
+
+  it('avisa si todavía no hay modelo base', async () => {
+    location.hash = '#quant';
+    vi.stubGlobal('fetch', vi.fn(async () => json({ ...report, quant: null })));
+    render(App);
+    expect(await screen.findByText(/Sin modelo base/)).toBeInTheDocument();
+  });
+
   it('muestra la sección About y oculta los filtros', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => json(report)));
     render(App);

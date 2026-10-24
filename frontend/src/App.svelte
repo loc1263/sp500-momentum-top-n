@@ -4,6 +4,7 @@
   import SweepView from './lib/SweepView.svelte';
   import CompareView from './lib/CompareView.svelte';
   import EtfView from './lib/EtfView.svelte';
+  import QuantView from './lib/QuantView.svelte';
   import AboutView from './lib/AboutView.svelte';
   import Glossary from './lib/Glossary.svelte';
   import Bunny from './lib/Bunny.svelte';
@@ -15,6 +16,7 @@
     { id: 'sweep', label: 'Plazos y sensibilidad' },
     { id: 'compare', label: 'N-0 vs N-1' },
     { id: 'etf', label: 'ETFs Vanguard' },
+    { id: 'quant', label: 'Modelo base' },
   ];
 
   // About no está en el menú: es un botón aparte, en la esquina opuesta
@@ -89,6 +91,8 @@
     </div>
     {#if tab === 'etf'}
       <h1>ETFs de Vanguard</h1>
+    {:else if tab === 'quant'}
+      <h1>Modelo base</h1>
     {:else if tab === 'about'}
       <h1>About</h1>
     {:else}
@@ -97,6 +101,8 @@
     <p class="sub">
       {#if tab === 'etf'}
         Momentum ajustado por riesgo: ranking de los ETFs de Vanguard por cuánto subieron por unidad de riesgo.
+      {:else if tab === 'quant'}
+        Scores de momentum, salud financiera y técnico de las acciones del S&amp;P 500, su promedio y Markowitz sobre las mejores.
       {:else if tab === 'about'}
         Qué se muestra en esta aplicación y cómo leerlo.
       {:else}
@@ -122,7 +128,7 @@
         {/each}
       </div>
       <div class="filters">
-        {#if tab !== 'actual' && tab !== 'etf' && tab !== 'about' && periods.length}
+        {#if tab !== 'actual' && tab !== 'etf' && tab !== 'quant' && tab !== 'about' && periods.length}
           <label>
             Período
             <select value={period?.years} onchange={(e) => (chosenYears = Number(e.currentTarget.value))}>
@@ -134,7 +140,7 @@
             </select>
           </label>
         {/if}
-        {#if tab !== 'etf' && tab !== 'about'}
+        {#if tab !== 'etf' && tab !== 'quant' && tab !== 'about'}
           <label>
             Universo
             <select bind:value={capKey}>
@@ -157,6 +163,12 @@
       {:else}
         <p class="muted">Sin ranking de ETFs. Ejecute top3_etf.py.</p>
       {/if}
+    {:else if tab === 'quant'}
+      {#if report.quant}
+        <QuantView quant={report.quant} />
+      {:else}
+        <p class="muted">Sin modelo base. Ejecute top3_quant.py.</p>
+      {/if}
     {:else if tab === 'actual'}
       {#if actual}
         <ActualView {actual} />
@@ -174,7 +186,7 @@
     {/if}
 
     <footer>
-      Generado el {report.generated_at.replace('T', ' ')}. Backtest con comisión de {share(report.settings.commission ?? 0, 2)} por lado, sin impuestos, ponderación igual
+      Generado el {report.generated_at.replace('T', ' ')}. {#if tab === 'quant'}Modelo base: foto de hoy, sin backtest; los datos financieros son los últimos publicados (Yahoo Finance). {/if}&nbsp;Backtest con comisión de {share(report.settings.commission ?? 0, 2)} por lado, sin impuestos, ponderación igual
       entre los tickers seleccionados. Excluye tickers sin datos en Yahoo (sesgo de supervivencia). Herramienta de
       análisis, no una recomendación de inversión.
     </footer>

@@ -4,7 +4,7 @@ from pathlib import Path
 from top3 import errors
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCES = [*ROOT.glob("top3/*.py"), *ROOT.glob("*.py")]
+SOURCES = [*ROOT.glob("top3/*.py"), *ROOT.glob("top3/*/*.py"), *ROOT.glob("*.py")]
 
 
 def test_ids_have_the_expected_format_and_are_unique():

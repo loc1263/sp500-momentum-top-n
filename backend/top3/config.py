@@ -55,6 +55,7 @@ DEFAULT_CONFIG: dict[str, dict] = {
         "backtest_log": "top3_backtest.log",
         "actual_log": "top3_actual.log",
         "etf_log": "top3_etf.log",
+        "quant_log": "top3_quant.log",
         "export_log": "export_frontend.log",
         "server_log": "server.log",
         "frontend_data": "../frontend/public/data/report.json",
@@ -67,6 +68,18 @@ DEFAULT_CONFIG: dict[str, dict] = {
         "top_n": 15,                           # cuántos se muestran en la consola
         "min_vol": 0.01,                       # volatilidad anual mínima para rankear: bajo eso es tipo efectivo
         "risk_free_ticker": "VUSB",            # ETF de bonos ultracortos: su retorno se resta al de cada ETF; "" = sin restar
+    },
+    "quant": {
+        "weights": [1, 1, 1],                  # peso de cada score en el final: momentum, salud financiera y técnico
+        "health_weights": [1, 1, 1, 2],        # peso de cada grupo en la salud: rentabilidad, solvencia, liquidez y caja
+        "top_n": 10,                           # acciones del ranking final sobre las que corre Markowitz
+        "vol_target": 0.20,                    # volatilidad anual máxima de la cartera de máximo retorno
+        "w_max": 0.25,                         # peso máximo por acción
+        "sector_max": 0.40,                    # peso máximo por sector
+        "mu_shrink": 0.25,                     # peso del retorno pasado de cada acción frente al retorno de largo plazo
+        "equity_premium": 0.05,                # prima de mercado anual (retorno de largo plazo = tasa libre de riesgo + prima)
+        "risk_free": 0.04,                     # tasa libre de riesgo anual (para el Sharpe)
+        "fundamentals_ttl_days": 7,            # días que se reutilizan los datos financieros descargados
     },
     "server": {
         "host": "127.0.0.1",
