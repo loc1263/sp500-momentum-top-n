@@ -266,12 +266,12 @@
     header { padding-right: 0; padding-top: 40px; }
     nav { position: static; margin: 0 0 var(--space-2); padding: 0; backdrop-filter: none; background: none; }
     .filters { width: 100%; }
-    /* Sin scroll horizontal: los grupos y sus pestañas pasan a la línea de abajo */
-    .tabs { flex-wrap: wrap; overflow: visible; border-bottom: 0; gap: var(--space-2) var(--space-4); }
-    .group + .group { border-left: 0; padding-left: 0; }
-    .group { flex: 1 1 auto; }
-    .row { flex-wrap: wrap; border-bottom: 1px solid var(--line); }
-    .cap { padding: 0 var(--space-2); }
-    .tabs button { padding: 7px var(--space-2); }
+    /* Sin scroll horizontal ni rótulos: todas las pestañas fluyen juntas y los grupos se separan con una línea */
+    .tabs { flex-wrap: wrap; overflow: visible; gap: 0; border-bottom: 1px solid var(--line); }
+    .group { display: contents; }
+    .cap { display: none; }
+    .row { display: contents; }
+    .group:not(:first-child) > .row > button:first-child { border-left: 1px solid var(--line); border-radius: 0; }
+    .tabs button { padding: 6px 9px; font-size: .82rem; }
   }
 </style>
