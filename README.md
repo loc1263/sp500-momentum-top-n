@@ -18,6 +18,7 @@ corrida anterior y el próximo rebalanceo) y un **ranking de momentum de los ETF
 | **Comparación N-0 vs. N-1**: el modelo de siempre frente a una variante *skip-month* que ignora el último mes al rankear, plazo por plazo | Pestaña *N-0 vs N-1* |
 | **Top actual**: las N acciones con mejor retorno hoy, cuatro suplentes, qué entra y qué sale, próximo rebalanceo | Pestaña *Top actual* |
 | **ETFs de Vanguard**: ranking por retorno ajustado por riesgo, con tendencia y caída máxima | Pestaña *ETFs Vanguard* |
+| **About**: qué se muestra en cada pestaña, de dónde salen los datos, qué incluyen los resultados y sus límites | Pestaña *About* |
 | Reportes por consola y en HTML, con códigos de error estables (`TOP-BKT-003`, ...) | `backend/output/` y [Códigos de error](#códigos-de-error-y-aviso) |
 
 ## Requisitos
@@ -64,7 +65,7 @@ años de precios); las siguientes ejecuciones son mucho más rápidas porque sol
 
 Al terminar imprime un resumen con el tiempo de cada paso y los avisos que hayan aparecido.
 
-### 3. Levantar los servidores y abrir la web
+### 3. Levantar la web
 
 Desde la carpeta raíz del proyecto:
 
@@ -73,24 +74,18 @@ Desde la carpeta raíz del proyecto:
 | Windows (PowerShell) | `.\start.ps1` |
 | macOS / Linux | `./start.sh` |
 
-Esto inicia el backend (puerto 8000) y el frontend (puerto 5173). Cuando aparezca el mensaje
+Esto inicia el frontend (puerto 5173). La página **no consulta ningún servidor**: lee el archivo estático
+`frontend/public/data/report.json`, que el paso 2 deja actualizado. Cuando aparezca el mensaje
 `Local: http://localhost:5173/`, abra esa dirección en el navegador:
 
 **http://localhost:5173**
 
-Para detener ambos servidores, presione `Ctrl+C` en la terminal.
+Para detenerlo, presione `Ctrl+C` en la terminal.
 
 <details>
-<summary>Levantar los servidores a mano (alternativa a los scripts)</summary>
-
-Se necesitan dos terminales abiertas a la vez.
+<summary>Levantar el frontend a mano (alternativa a los scripts)</summary>
 
 ```
-# Terminal 1: backend
-cd backend
-python server.py
-
-# Terminal 2: frontend
 cd frontend
 npm run dev
 ```
@@ -99,17 +94,17 @@ npm run dev
 
 ### Actualizar los resultados
 
-Para refrescar los datos (por ejemplo, otro día), vuelva a ejecutar el paso 2 y recargue la página. Los servidores
-pueden seguir en marcha.
+Para refrescar los datos (por ejemplo, otro día), vuelva a ejecutar el paso 2 y recargue la página. El servidor
+puede seguir en marcha.
 
 ### Problemas frecuentes
 
 | Síntoma | Solución |
 |---|---|
 | PowerShell indica que la ejecución de scripts está deshabilitada | Ejecute `powershell -ExecutionPolicy Bypass -File .\start.ps1` o use la alternativa manual |
-| La página muestra «No se pudo cargar api/report ni data/report.json» | Falta el paso 2, o el backend no está en marcha. Ejecute `python run_pipeline.py` en `backend/` |
+| La página muestra «No se pudo cargar data/report.json» | Falta el paso 2. Ejecute `python run_pipeline.py` en `backend/` y recargue |
 | La pestaña indica «Sin Top actual» o «Sin backtest» | Ejecute `python run_pipeline.py` en `backend/` |
-| Error por puerto en uso | Cierre el programa que lo ocupa o cambie el puerto: `.\start.ps1 -BackendPort 9000 -FrontendPort 3000` (Windows) o `BACKEND_PORT=9000 FRONTEND_PORT=3000 ./start.sh` |
+| Error por puerto en uso | Cierre el programa que lo ocupa o cambie el puerto: `.\start.ps1 -FrontendPort 3000` (Windows) o `FRONTEND_PORT=3000 ./start.sh` |
 | Avisos o errores durante la descarga (`TOP-NET-...`) | Suelen ser problemas de red o límites de Yahoo Finance; vuelva a intentarlo más tarde. Ver [Códigos de error](#códigos-de-error-y-aviso) |
 
 ## Cómo funciona
@@ -183,15 +178,18 @@ Los comandos de Python se corren desde `backend/` (las rutas del config son rela
 ### Levantar todo
 
 ```
-.\start.ps1                                   # Windows: backend en :8000, frontend en http://localhost:5173
-.\start.ps1 -BackendPort 9000 -FrontendPort 3000
+.\start.ps1                                   # Windows: frontend en http://localhost:5173
+.\start.ps1 -FrontendPort 3000
 ./start.sh                                    # macOS / Linux
-BACKEND_PORT=9000 FRONTEND_PORT=3000 ./start.sh
+FRONTEND_PORT=3000 ./start.sh
 ```
 
-El frontend pide `/api/report` al backend (en desarrollo Vite lo redirige) y, si el backend no está, usa
-`data/report.json`. Primero hay que haber corrido el backtest y el Top actual al menos una vez.
-`npm run build` en `frontend/` genera la versión estática en `frontend/dist/`.
+La página no pide nada al backend: lee `data/report.json`, el archivo estático que dejan al terminar
+`run_pipeline.py`, `top3_backtest.py`, `top3_actual.py` y `top3_etf.py` (también `export_frontend.py` a mano). Primero
+hay que haber corrido el pipeline al menos una vez. `npm run build` en `frontend/` genera la versión estática en
+`frontend/dist/`, que se puede publicar en cualquier hosting estático con el JSON de ese momento.
+
+`backend/server.py` sigue disponible como API opcional (`GET /api/report`), pero la web no la usa.
 
 ### Pipeline completo
 
@@ -505,7 +503,7 @@ frontend/             # Aplicación web en Svelte 5 + Vite
 | `backend/top3_actual.py` | Top N de hoy: las acciones del S&P 500 con mejor retorno en el plazo configurado |
 | `backend/top3_etf.py` | Ranking de momentum ajustado por riesgo de los ETFs de Vanguard (sin backtest) |
 | `backend/run_pipeline.py` | Pipeline completo: backtest (todos los períodos y universos) + Top actual de cada universo + JSON del frontend |
-| `backend/server.py` | API HTTP: `GET /api/report` (JSON con Top actual y backtest, leído de SQLite) |
+| `backend/server.py` | API HTTP opcional: `GET /api/report` (el mismo JSON, leído de SQLite). La web no la usa |
 | `backend/prune_db.py` | Limpia a mano las corridas viejas de SQLite (se hace sola en cada backtest) |
 | `backend/export_frontend.py` | Escribe ese mismo JSON en `frontend/public/data/report.json` (lo hacen solos los scripts al terminar) |
 | `backend/data/`, `backend/output/`, `backend/log/` | Base SQLite, reportes HTML y logs; se crean solos |
@@ -542,6 +540,7 @@ frontend/             # Aplicación web en Svelte 5 + Vite
 | `lib/SweepView.svelte` | Comparación de plazos y sensibilidad al arranque |
 | `lib/CompareView.svelte` | Modelo de siempre (N-0) frente al skip-month (N-1), plazo por plazo y por mitades del período |
 | `lib/EtfView.svelte` | Ranking de ETFs de Vanguard |
+| `lib/AboutView.svelte` | Pestaña About: qué se muestra en la aplicación, fuentes de datos y límites |
 | `lib/Chart.svelte`, `Range.svelte`, `TickerLink.svelte`, `Glossary.svelte` | Componentes compartidos |
 | `lib/Bunny.svelte` | Detalle decorativo: un conejo que pasea por el pie de la pantalla, se aleja del cursor y saluda al hacer clic (se desactiva con «reducir movimiento» del sistema) |
 | `lib/format.js` | Formato de porcentajes, dinero y signos |

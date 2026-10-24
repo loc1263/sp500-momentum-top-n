@@ -11,6 +11,7 @@ from top3.config import load_config
 from top3.console import configure_console
 from top3.etf import run_etf
 from top3.logs import log_config, run_cli, setup_logging
+from top3.report_data import export_report
 
 
 def parse_args(argv=None) -> argparse.Namespace:
@@ -33,6 +34,8 @@ def main(argv=None) -> None:
     setup_logging(cfg["output"]["etf_log"], cfg["output"]["log_dir"])
     log_config(cfg, args.config)
     run_etf(cfg, as_of=args.as_of, top_n=args.top_n, csv_path=args.csv, update_list=not args.no_update)
+    if not args.as_of:  # una consulta a una fecha pasada no se guarda, así que no cambia lo que muestra la web
+        export_report(cfg)
 
 
 if __name__ == "__main__":
