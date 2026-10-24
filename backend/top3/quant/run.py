@@ -15,7 +15,7 @@ from ..db import open_db
 from ..logs import log
 from ..prices import ensure_prices, load_prices
 from ..repo import quant as store
-from . import fundamentals as FU, markowitz as MK, momentum as MO, ohlcv as OH, technical as TE
+from . import fundamentals, markowitz, momentum as momentum_model, ohlcv as ohlcv_store, technical as technical_model
 
 
 def _clean(value):
@@ -45,10 +45,10 @@ def run_quant(cfg: Config, use_cache: bool = True) -> dict:
         ensure_prices(conn, constituents.all_between(history_start, today), history_start,
                       (today + timedelta(days=1)).isoformat(), use_cache, settings)
         prices = load_prices(conn)
-        data = FU.ensure_fundamentals(conn, tickers, use_cache, q.fundamentals_ttl_days,
+        data = fundamentals.ensure_fundamentals(conn, tickers, use_cache, q.fundamentals_ttl_days,
                                       settings.shares_workers)
-        OH.ensure_ohlcv(conn, tickers, use_cache, settings.batch_size)
-        ohlcv = OH.load_ohlcv(conn)
+        ohlcv_store.ensure_ohlcv(conn, tickers, use_cache, settings.batch_size)
+        ohlcv = ohlcv_store.load_ohlcv(conn)
     finally:
         conn.close()
     payload = compute(prices, tickers, data, ohlcv, cfg)
@@ -60,11 +60,11 @@ def _scores(prices: pd.DataFrame, tickers: list[str], data: dict[str, dict], ohl
             q: QuantConfig, top_n: int) -> tuple[pd.DataFrame, pd.Series, pd.DataFrame, pd.DataFrame]:
     """Tabla con los tres scores y el final, ordenada de mayor a menor, más los scores sueltos (momentum, salud y
     técnico) para medir la cobertura. Corta con un error si hay menos acciones con los tres scores que `top_n`."""
-    returns = MO.momentum_returns(prices)
-    momentum = MO.momentum_score(returns)
-    frame = FU.indicators(data)
-    health = FU.health_score(frame, dict(zip(FU.GROUPS, q.health_weights)))
-    technical = TE.technical_score(TE.indicators({k: v.reindex(columns=tickers) for k, v in ohlcv.items()}))
+    returns = momentum_model.momentum_returns(prices)
+    momentum = momentum_model.momentum_score(returns)
+    frame = fundamentals.indicators(data)
+    health = fundamentals.health_score(frame, dict(zip(fundamentals.GROUPS, q.health_weights)))
+    technical = technical_model.technical_score(technical_model.indicators({k: v.reindex(columns=tickers) for k, v in ohlcv.items()}))
     table = frame.join(returns).join(momentum).join(health).join(technical.add_prefix("tec_"))
     scores = ["momentum", "health", "tec_technical"]
     ranked = table.dropna(subset=scores).copy()
@@ -86,8 +86,8 @@ def _ranking_rows(ranked: pd.DataFrame, top_n: int, weight: dict[str, float]) ->
         rows.append({
             "rank": rank, "ticker": ticker, "name": r["name"], "sector": r["sector"], "market_cap": r["market_cap"],
             "score": r["score"], "momentum": r["momentum"], "health": r["health"], "technical": r["tec_technical"],
-            "groups": int(r["groups"]), "health_groups": {g: r[g] for g in FU.GROUPS},
-            "technical_groups": {g: r["tec_" + g] for g in TE.GROUPS}, "rsi": r["tec_rsi"],
+            "groups": int(r["groups"]), "health_groups": {g: r[g] for g in fundamentals.GROUPS},
+            "technical_groups": {g: r["tec_" + g] for g in technical_model.GROUPS}, "rsi": r["tec_rsi"],
             "macd_hist": r["tec_macd_hist"], "vs_ema50": r["tec_vs_ema50"], "vs_ema200": r["tec_vs_ema200"],
             "mom_12_1": r["mom_12_1"], "mom_6_1": r["mom_6_1"],
             "roe": r["roe"], "operating_margin": r["operating_margin"], "debt_to_equity": r["debt_to_equity"],
@@ -119,8 +119,8 @@ def compute(prices: pd.DataFrame, tickers: list[str], data: dict[str, dict], ohl
 
     top = list(ranked.index[:q.top_n])
     prior = q.risk_free + q.equity_premium
-    mu, sigma = MK.inputs(prices[top], q.mu_shrink, prior)
-    optimal = MK.frontier(mu, sigma, q.vol_target, q.w_max, q.risk_free, ranked.loc[top, "sector"], q.sector_max)
+    mu, sigma = markowitz.inputs(prices[top], q.mu_shrink, prior)
+    optimal = markowitz.frontier(mu, sigma, q.vol_target, q.w_max, q.risk_free, ranked.loc[top, "sector"], q.sector_max)
     # los pesos de la tabla son los de la primera cartera disponible: máximo retorno o, si no se alcanza el riesgo, Sharpe
     weight = {w["ticker"]: w["weight"] for w in optimal["portfolios"][0]["weights"]}
     vol = pd.Series(np.sqrt(np.diag(sigma)), index=sigma.index)
@@ -128,7 +128,7 @@ def compute(prices: pd.DataFrame, tickers: list[str], data: dict[str, dict], ohl
         "as_of": prices.index[-1].date().isoformat(), "generated_at": datetime.now().isoformat(timespec="seconds"),
         "settings": {"top_n": q.top_n, "vol_target": q.vol_target, "w_max": q.w_max, "sector_max": q.sector_max,
                      "mu_shrink": q.mu_shrink, "risk_free": q.risk_free, "prior": prior,
-                     "weights": list(q.weights), "health_weights": dict(zip(FU.GROUPS, q.health_weights))},
+                     "weights": list(q.weights), "health_weights": dict(zip(fundamentals.GROUPS, q.health_weights))},
         "coverage": _coverage(tickers, momentum, health, technical, ranked),
         "ranking": _ranking_rows(ranked, q.top_n, weight),
         "markowitz": {"tickers": [{"ticker": t, "exp_return": mu[t], "vol": vol[t]} for t in top], **optimal,

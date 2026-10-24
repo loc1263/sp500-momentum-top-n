@@ -1,6 +1,6 @@
 import pandas as pd
 
-from top3.analysis import Calendar
+from top3.results import Calendar
 from top3.engine import BacktestResult
 
 

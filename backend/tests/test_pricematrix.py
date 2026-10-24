@@ -150,7 +150,7 @@ def test_backtest_gives_the_same_result_with_a_prebuilt_matrix():
 
 
 def test_context_builds_the_matrix_once(conn, cfg, settings):
-    from top3.analysis import Context
+    from top3.context import Context
     ctx = Context(conn, cfg, settings, FakeConstituents([]), short_prices(30, 2),
                   pd.Timestamp("2024-01-01"), pd.Timestamp("2024-02-01"))
     assert ctx.matrix is ctx.matrix and ctx.matrix.columns == ["T00", "T01"]

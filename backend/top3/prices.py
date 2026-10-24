@@ -76,6 +76,13 @@ def fetch_prices(tickers: list[str], start: str, end: str, batch_size: int, retr
     return prices, sin_datos
 
 
+def download_recent(tickers: list[str], start: str, end: str, batch_size: int) -> pd.DataFrame:
+    """Precios ajustados de `tickers` en lotes (no se guardan: solo la ventana reciente)."""
+    long, _ = fetch_prices(tickers, start, end, batch_size)
+    long["date"] = pd.to_datetime(long["date"])
+    return long.pivot(index="date", columns="ticker", values="close").sort_index()
+
+
 def download_prices(conn: sqlite3.Connection, tickers: list[str], start: str, end: str,
                     settings: DataConfig) -> None:
     """Descarga completa: baja precios ajustados de todos los tickers y reemplaza lo guardado."""

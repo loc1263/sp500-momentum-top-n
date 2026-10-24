@@ -1,7 +1,7 @@
 """Tablas de resultados como (encabezados, filas) de texto; las usan tanto la consola como el HTML."""
 import pandas as pd
 
-from .analysis import Calendar, Term
+from .results import Calendar, Term
 
 Table = tuple[list[str], list[list[str]]]
 

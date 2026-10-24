@@ -1,5 +1,4 @@
 """Flujos del backtest: arman las corridas, las muestran por consola y escriben los reportes HTML."""
-import sqlite3
 from dataclasses import dataclass, replace
 from datetime import date, timedelta
 from pathlib import Path
@@ -8,34 +7,12 @@ import pandas as pd
 
 from . import console, errors as E, html_report, universe as universes
 from .analysis import SKIP_MONTHS, Context, attach_market_caps, run_calendars, run_terms
-from .config import BacktestConfig, Config, DataConfig
+from .config import BacktestConfig, Config
 from .constituents import Constituents, ensure_constituents
 from .db import open_db
 from .logs import log
 from .prices import ensure_prices, load_prices
-from .shares import ensure_shares
-from .universe import Universe
-
-
-class UniverseBuilder:
-    """Crea el Universe de cada umbral de capitalización reutilizando las acciones en circulación ya bajadas."""
-
-    def __init__(self, conn: sqlite3.Connection, prices: pd.DataFrame, use_cache: bool, settings: DataConfig,
-                 known_shares: dict[str, float] | None = None):
-        self.conn, self.prices, self.use_cache, self.settings = conn, prices, use_cache, settings
-        self.known_shares = known_shares if known_shares is not None else {}  # se comparte con los Context
-        self._shares: dict[str, float] | None = None
-
-    def __call__(self, min_cap_billions: float | None) -> Universe | None:
-        """None para el índice completo (umbral 0 o vacío)."""
-        if not min_cap_billions:
-            return None
-        if self._shares is None:
-            self._shares = ensure_shares(self.conn, list(self.prices.columns), self.use_cache, self.settings,
-                                         known=self.known_shares)
-            self.known_shares.update(self._shares)
-        log.info("Universo: %s (cap. aprox. >= US$ %g B)", universes.label(min_cap_billions), min_cap_billions)
-        return Universe(self._shares, min_cap_billions)
+from .universe import Universe, UniverseBuilder
 
 
 def _min_cap(universe: Universe | None) -> float | None:

@@ -6,7 +6,8 @@ from pathlib import Path
 import pandas as pd
 
 from . import tables, universe
-from .analysis import Context, Term
+from .context import Context
+from .results import Term
 from .config import Config
 from .logs import log
 

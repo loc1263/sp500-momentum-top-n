@@ -6,7 +6,8 @@ from functools import cache
 import pandas as pd
 
 from . import tables, universe
-from .analysis import Context, Term
+from .context import Context
+from .results import Term
 
 GREEN, RESET = "\033[32m", "\033[0m"
 

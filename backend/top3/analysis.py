@@ -1,98 +1,19 @@
 """Corridas del backtest por plazo y por calendario de arranque, y su resumen estadístico."""
-import sqlite3
-import statistics
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict
 
 import pandas as pd
 
 from . import errors as E
-from .config import Config, DataConfig
-from .constituents import Constituents
-from .engine import BacktestResult, Skipped, report_skipped, run_backtest
+from .context import Context
+from .engine import Skipped, report_skipped, run_backtest
 from .logs import log
-from .pricematrix import PriceMatrix
 from .repo.runs import save_run
+from .results import Calendar, Term
 from .shares import add_market_caps, ensure_shares
 from .universe import Universe, label
 
 
 SKIP_MONTHS = 1  # el modelo skip-month (N-1) ignora el último mes al armar el ranking
-
-
-@dataclass
-class Context:
-    """Todo lo que comparten las corridas de un período: datos, fechas y configuración."""
-
-    conn: sqlite3.Connection
-    cfg: Config
-    settings: DataConfig
-    constituents: Constituents
-    prices: pd.DataFrame
-    start_date: pd.Timestamp
-    end_date: pd.Timestamp
-    use_cache: bool = True
-    file_suffix: str = ""   # se agrega al nombre de los reportes HTML (p. ej. "_5y")
-    known_shares: dict[str, float] = field(default_factory=dict)  # acciones ya bajadas en esta corrida
-    _matrix: PriceMatrix | None = field(default=None, repr=False)
-
-    @property
-    def matrix(self) -> PriceMatrix:
-        """Los precios como matriz numpy, armada una sola vez y compartida por todas las simulaciones."""
-        if self._matrix is None:
-            self._matrix = PriceMatrix(self.prices)
-        return self._matrix
-
-    @property
-    def initial_capital(self) -> float:
-        return self.cfg.backtest.initial_capital
-
-    @property
-    def commission(self) -> float:
-        return self.cfg.backtest.commission
-
-    @property
-    def top_n(self) -> int:
-        return self.cfg.backtest.top_n
-
-    @property
-    def terms(self) -> list[int]:
-        return list(self.cfg.simulation.months)
-
-    def lookback_days(self, months: int) -> int:
-        return months * self.cfg.backtest.trading_days_per_month
-
-    def skip_days(self, skip_months: int) -> int:
-        return skip_months * self.cfg.backtest.trading_days_per_month
-
-
-@dataclass(kw_only=True)
-class Calendar(BacktestResult):
-    """Una corrida de un plazo con el arranque desfasado `offset` meses (0 = calendario base)."""
-
-    offset: int
-
-
-@dataclass
-class Term:
-    """Un plazo de N meses con todos sus calendarios de arranque posibles."""
-
-    months: int
-    calendars: list[Calendar]
-
-    @property
-    def base(self) -> Calendar | None:
-        """Calendario base: el que arranca en el primer mes del período."""
-        return next((c for c in self.calendars if c.offset == 0), None)
-
-    def cagr_stats(self) -> tuple[float, float, float]:
-        """(mediana, mínimo, máximo) del CAGR % entre los calendarios."""
-        cagrs = [c.cagr_pct for c in self.calendars]
-        return statistics.median(cagrs), min(cagrs), max(cagrs)
-
-    def capital_stats(self) -> tuple[float, float, float]:
-        """(mediana, mínimo, máximo) del capital final entre los calendarios."""
-        finals = [c.final_capital for c in self.calendars]
-        return statistics.median(finals), min(finals), max(finals)
 
 
 def _where(ctx: Context, universe: Universe | None) -> str:

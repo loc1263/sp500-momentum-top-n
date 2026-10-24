@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from top3 import actual
+from top3 import actual, prices as prices_module
 from top3.universe import Universe
 
 
@@ -47,8 +47,8 @@ def test_get_prices_downloads_when_no_cache(conn, monkeypatch, settings):
 def test_download_recent_returns_datetime_index(monkeypatch):
     long = pd.DataFrame([("A", "2024-01-02", 1.0), ("A", "2024-01-03", 2.0), ("B", "2024-01-02", 3.0)],
                         columns=["ticker", "date", "close"])
-    monkeypatch.setattr(actual, "fetch_prices", lambda tickers, start, end, batch_size: (long, []))
-    out = actual.download_recent(["A", "B"], "2024-01-01", "2024-01-05", 100)
+    monkeypatch.setattr(prices_module, "fetch_prices", lambda tickers, start, end, batch_size: (long, []))
+    out = prices_module.download_recent(["A", "B"], "2024-01-01", "2024-01-05", 100)
     assert isinstance(out.index, pd.DatetimeIndex) and out.index[-1].date().isoformat() == "2024-01-03"
     assert out.shape == (2, 2)
 

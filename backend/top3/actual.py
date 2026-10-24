@@ -12,7 +12,7 @@ from .constituents import download_current_constituents
 from .db import fetched_today, get_meta, open_db
 from .engine import rank_returns
 from .logs import log
-from .prices import fetch_prices
+from .prices import download_recent
 from .repo import constituents as constituents_store, picks as store, prices as prices_store
 from .shares import ensure_shares
 from .universe import Universe
@@ -34,13 +34,6 @@ def get_current_tickers(conn: sqlite3.Connection, aliases: dict[str, str], use_c
     tickers = list(dict.fromkeys(aliases.get(t, t) for t in tickers))
     log.info("Tickers del S&P 500 actual: %d", len(tickers))
     return tickers
-
-
-def download_recent(tickers: list[str], start: str, end: str, batch_size: int) -> pd.DataFrame:
-    """Precios ajustados de `tickers` en lotes (no se guardan: solo la ventana reciente)."""
-    long, _ = fetch_prices(tickers, start, end, batch_size)
-    long["date"] = pd.to_datetime(long["date"])
-    return long.pivot(index="date", columns="ticker", values="close").sort_index()
 
 
 def get_prices(conn: sqlite3.Connection, tickers: list[str], start: str, end: str, use_cache: bool,

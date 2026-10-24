@@ -2,7 +2,7 @@ import pandas as pd
 import pytest
 
 from top3 import universe
-from top3.universe import Universe
+from top3.universe import Universe, UniverseBuilder
 
 
 @pytest.mark.parametrize("cap,suffix", [(0, ""), (None, ""), (5, "_cap5B"), (10, "_largecap"), (200, "_megacap")])
@@ -33,12 +33,11 @@ def test_select_ignores_missing_prices_and_unknown_shares():
 
 
 def test_universe_builder_shares_what_it_downloads_with_the_run(conn, settings, monkeypatch):
-    from top3 import workflow
     calls = []
-    monkeypatch.setattr(workflow, "ensure_shares",
+    monkeypatch.setattr(universe, "ensure_shares",
                         lambda c, tickers, use_cache, s, known=None: (calls.append(dict(known)), {t: 1e9 for t in tickers})[1])
     known = {}
-    builder = workflow.UniverseBuilder(conn, pd.DataFrame(columns=["A", "B"]), False, settings, known)
+    builder = UniverseBuilder(conn, pd.DataFrame(columns=["A", "B"]), False, settings, known)
     assert builder(10).shares == {"A": 1e9, "B": 1e9}
     assert known == {"A": 1e9, "B": 1e9} and calls == [{}]
     assert builder(200).min_cap_billions == 200 and len(calls) == 1      # no vuelve a pedir

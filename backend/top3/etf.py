@@ -12,10 +12,10 @@ from pathlib import Path
 import pandas as pd
 
 from . import console, errors as E, html_report, rotation, vanguard
-from .actual import download_recent
 from .config import Config
 from .db import open_db
 from .logs import log
+from .prices import download_recent
 from .repo import etf as store
 
 TRADING_DAYS_YEAR = 252

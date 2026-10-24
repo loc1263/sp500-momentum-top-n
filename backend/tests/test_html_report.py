@@ -4,7 +4,8 @@ import pandas as pd
 
 from helpers import make_calendar as calendar
 from top3 import html_report
-from top3.analysis import Context, Term
+from top3.context import Context
+from top3.results import Term
 
 
 def test_html_table_classes_and_escape():

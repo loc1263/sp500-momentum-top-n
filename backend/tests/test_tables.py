@@ -2,7 +2,7 @@ import pandas as pd
 
 from helpers import make_calendar as calendar
 from top3 import tables
-from top3.analysis import Term
+from top3.results import Term
 
 
 def terms():
