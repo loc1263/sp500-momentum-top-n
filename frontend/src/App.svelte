@@ -4,6 +4,7 @@
   import SweepView from './lib/SweepView.svelte';
   import CompareView from './lib/CompareView.svelte';
   import EtfView from './lib/EtfView.svelte';
+  import AboutView from './lib/AboutView.svelte';
   import Glossary from './lib/Glossary.svelte';
   import Bunny from './lib/Bunny.svelte';
   import { share } from './lib/format.js';
@@ -16,7 +17,9 @@
     { id: 'etf', label: 'ETFs Vanguard' },
   ];
 
-  const initialTab = () => (tabs.some((t) => t.id === location.hash.slice(1)) ? location.hash.slice(1) : 'actual');
+  // About no está en el menú: es un botón aparte, en la esquina opuesta
+  const initialTab = () =>
+    [...tabs.map((t) => t.id), 'about'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'actual';
 
   let tab = $state(initialTab());
   let capKey = $state('0');
@@ -35,17 +38,15 @@
     }
   }
 
-  // Primero la API del backend; si no está levantada, el JSON estático exportado
+  // La página no pide nada al backend: lee el JSON estático que dejan los scripts de Python al terminar
   async function load() {
-    for (const url of ['api/report', 'data/report.json']) {
-      try {
-        const res = await fetch(url);
-        if (res.ok && (res.headers.get('content-type') ?? '').includes('json')) return await res.json();
-      } catch {
-        /* se prueba la siguiente fuente */
-      }
+    try {
+      const res = await fetch('data/report.json', { cache: 'no-cache' });
+      if (res.ok && (res.headers.get('content-type') ?? '').includes('json')) return await res.json();
+    } catch {
+      /* se informa abajo */
     }
-    throw new Error('No se pudo cargar api/report ni data/report.json. ¿Está levantado el backend?');
+    throw new Error('No se pudo cargar data/report.json. Ejecute python run_pipeline.py en backend/ y recargue.');
   }
 
   $effect(() => {
@@ -78,12 +79,29 @@
 
 <main>
   <header>
-    <button class="theme" onclick={toggleTheme} aria-label="Cambiar tema claro/oscuro" title="Cambiar tema">
-      {dark ? '☀️ Claro' : '🌙 Oscuro'}
-    </button>
-    <h1>Top {report?.settings.top_n ?? 'N'} del S&amp;P 500</h1>
+    <div class="corner">
+      <button class="about" class:active={tab === 'about'} aria-pressed={tab === 'about'} onclick={() => (tab = 'about')}>
+        About
+      </button>
+      <button class="theme" onclick={toggleTheme} aria-label="Cambiar tema claro/oscuro" title="Cambiar tema">
+        {dark ? '☀️ Claro' : '🌙 Oscuro'}
+      </button>
+    </div>
+    {#if tab === 'etf'}
+      <h1>ETFs de Vanguard</h1>
+    {:else if tab === 'about'}
+      <h1>About</h1>
+    {:else}
+      <h1>Top {report?.settings.top_n ?? 'N'} del S&amp;P 500</h1>
+    {/if}
     <p class="sub">
-      Momentum: cada N meses se compran, con ponderación igual, las acciones que más subieron en los últimos N meses.
+      {#if tab === 'etf'}
+        Momentum ajustado por riesgo: ranking de los ETFs de Vanguard por cuánto subieron por unidad de riesgo.
+      {:else if tab === 'about'}
+        Qué se muestra en esta aplicación y cómo leerlo.
+      {:else}
+        Momentum: cada N meses se compran, con ponderación igual, las acciones que más subieron en los últimos N meses.
+      {/if}
       {#if report}
         Corrida del {report.run_date ?? 'sin datos'}.
       {/if}
@@ -104,7 +122,7 @@
         {/each}
       </div>
       <div class="filters">
-        {#if tab !== 'actual' && tab !== 'etf' && periods.length}
+        {#if tab !== 'actual' && tab !== 'etf' && tab !== 'about' && periods.length}
           <label>
             Período
             <select value={period?.years} onchange={(e) => (chosenYears = Number(e.currentTarget.value))}>
@@ -116,7 +134,7 @@
             </select>
           </label>
         {/if}
-        {#if tab !== 'etf'}
+        {#if tab !== 'etf' && tab !== 'about'}
           <label>
             Universo
             <select bind:value={capKey}>
@@ -131,7 +149,9 @@
 
     {#if tab === 'backtest' || tab === 'sweep' || tab === 'compare'}<Glossary />{/if}
 
-    {#if tab === 'etf'}
+    {#if tab === 'about'}
+      <AboutView settings={report.settings} />
+    {:else if tab === 'etf'}
       {#if report.etf}
         <EtfView etf={report.etf} />
       {:else}
@@ -164,21 +184,45 @@
 <Bunny />
 
 <style>
-  main { max-width: 1280px; margin: 0 auto; padding: 24px 16px 48px; }
-  header { position: relative; }
-  .theme {
-    position: absolute; top: 0; right: 0; background: var(--card); color: var(--fg); border: 1px solid var(--line);
-    border-radius: 6px; padding: 4px 10px; font: inherit; font-size: .85rem; cursor: pointer;
+  main { max-width: 1280px; margin: 0 auto; padding: var(--space-5) var(--space-4) 56px; }
+  header { position: relative; padding-right: 190px; min-height: 52px; }
+  header .sub { margin-bottom: var(--space-3); }
+  .corner { position: absolute; top: 0; right: 0; display: flex; gap: var(--space-2); }
+  .corner button {
+    background: var(--card); color: var(--fg); border: 1px solid var(--line); border-radius: var(--radius-sm);
+    padding: 5px 12px; font-size: .85rem; cursor: pointer; box-shadow: var(--shadow);
+    transition: border-color .12s ease, color .12s ease;
   }
-  nav { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 16px; margin: 16px 0 8px; }
-  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); flex: 1 1 auto; }
+  .corner button:hover { border-color: var(--muted); }
+  .corner .about.active { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+
+  /* La navegación queda fija arriba al desplazarse por tablas largas */
+  nav {
+    position: sticky; top: 0; z-index: 10; display: flex; flex-wrap: wrap; justify-content: space-between;
+    align-items: flex-end; gap: var(--space-2) var(--space-4); margin: 0 calc(var(--space-4) * -1) var(--space-2);
+    padding: var(--space-2) var(--space-4) 0; background: color-mix(in srgb, var(--bg) 90%, transparent);
+    backdrop-filter: blur(8px);
+  }
+  .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); flex: 1 1 auto; overflow-x: auto; scrollbar-width: none; }
+  .tabs::-webkit-scrollbar { display: none; }
   .tabs button {
     background: none; border: 0; border-bottom: 2px solid transparent; color: var(--muted); cursor: pointer;
-    font: inherit; padding: 8px 14px; margin-bottom: -1px;
+    padding: 9px 14px; margin-bottom: -1px; white-space: nowrap; border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+    transition: color .12s ease, background-color .12s ease, border-color .12s ease;
   }
+  .tabs button:hover { color: var(--fg); background: var(--accent-soft); }
   .tabs button.active { color: var(--fg); border-bottom-color: var(--accent); font-weight: 600; }
-  .filters { display: flex; flex-wrap: wrap; gap: 8px 16px; }
-  nav label { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: .9rem; }
+  .filters { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); padding-bottom: 6px; }
+  nav label { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--muted); font-size: .88rem; }
   .error { border-left-color: var(--neg); }
-  footer { margin-top: 32px; color: var(--muted); font-size: .8rem; }
+  footer {
+    margin-top: 40px; padding-top: var(--space-4); border-top: 1px solid var(--line); color: var(--muted);
+    font-size: .8rem; max-width: 100ch;
+  }
+
+  @media (max-width: 720px) {
+    header { padding-right: 0; padding-top: 40px; }
+    nav { position: static; margin: 0 0 var(--space-2); padding: 0; backdrop-filter: none; background: none; }
+    .filters { width: 100%; }
+  }
 </style>

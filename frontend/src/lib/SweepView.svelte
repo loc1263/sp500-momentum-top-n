@@ -25,10 +25,10 @@
   const hi = $derived(Math.max(...rows.map((r) => r.s.cagr_max)));
   const at = (v) => `${((v - lo) / (hi - lo || 1)) * 100}%`;
 
-  const colors = ['var(--s1)', 'var(--s2)', 'var(--s3)', 'var(--s4)', 'var(--s5)'];
+  const colors = ['var(--s1)', 'var(--s2)', 'var(--s3)', 'var(--s4)', 'var(--s5)', 'var(--s6)'];
   const series = $derived(
     universe.terms.map((t, i) => ({
-      name: `${t.months} meses`, color: colors[i % colors.length],
+      name: `${t.months} meses`, color: colors[i],
       points: baseOf(t).equity.map((e) => ({ date: e.date, value: e.capital })),
     })),
   );

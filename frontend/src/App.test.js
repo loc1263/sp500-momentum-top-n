@@ -17,30 +17,30 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('App', () => {
-  it('carga api/report y muestra el Top actual', async () => {
+  it('carga el JSON estático y muestra el Top actual', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => json(report)));
     render(App);
     expect(await screen.findByText('NVDA')).toBeInTheDocument();
     expect(screen.getByText(/Corrida del 2026-10-20/)).toBeInTheDocument();
-    expect(fetch).toHaveBeenCalledWith('api/report');
+    expect(fetch).toHaveBeenCalledWith('data/report.json', { cache: 'no-cache' });
   });
 
-  it('cae al JSON estático si la API no responde', async () => {
-    const f = vi.fn(async (url) => (url === 'api/report' ? fail() : json(report)));
+  it('no pide nada al backend (solo el JSON estático)', async () => {
+    const f = vi.fn(async () => json(report));
     vi.stubGlobal('fetch', f);
     render(App);
-    expect(await screen.findByText('NVDA')).toBeInTheDocument();
-    expect(f).toHaveBeenLastCalledWith('data/report.json');
+    await screen.findByText('NVDA');
+    expect(f.mock.calls.map((c) => c[0])).toEqual(['data/report.json']);
   });
 
-  it('ignora respuestas que no son JSON', async () => {
+  it('muestra un error si la respuesta no es JSON', async () => {
     const html = { ok: true, headers: { get: () => 'text/html' }, json: async () => ({}) };
-    vi.stubGlobal('fetch', vi.fn(async (url) => (url === 'api/report' ? html : json(report))));
+    vi.stubGlobal('fetch', vi.fn(async () => html));
     render(App);
-    expect(await screen.findByText('NVDA')).toBeInTheDocument();
+    expect(await screen.findByText(/No se pudo cargar data\/report.json/)).toBeInTheDocument();
   });
 
-  it('muestra un error si no hay ninguna fuente', async () => {
+  it('muestra un error si no se puede leer el archivo', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('red'); }));
     render(App);
     expect(await screen.findByText(/No se pudo cargar/)).toBeInTheDocument();
@@ -61,11 +61,25 @@ describe('App', () => {
     await screen.findByText('NVDA');
     await fireEvent.click(screen.getByRole('tab', { name: 'ETFs Vanguard' }));
     expect(await screen.findByText('Ranking global de ETFs de Vanguard')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('ETFs de Vanguard');
     expect(screen.getByRole('link', { name: 'VONV' })).toBeInTheDocument();
     expect(screen.queryByLabelText('Universo')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Período')).not.toBeInTheDocument();
     expect(screen.queryByText('¿Cómo leer esta página?')).not.toBeInTheDocument();
     await waitFor(() => expect(location.hash).toBe('#etf'));
+  });
+
+  it('muestra la sección About y oculta los filtros', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => json(report)));
+    render(App);
+    await screen.findByText('NVDA');
+    expect(screen.queryByRole('tab', { name: 'About' })).not.toBeInTheDocument(); // no es parte del menú
+    await fireEvent.click(screen.getByRole('button', { name: 'About' }));
+    expect(await screen.findByText('Qué es esta aplicación')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('About');
+    expect(screen.queryByLabelText('Universo')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Período')).not.toBeInTheDocument();
+    await waitFor(() => expect(location.hash).toBe('#about'));
   });
 
   it('avisa si todavía no hay ranking de ETFs', async () => {
