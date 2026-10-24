@@ -60,15 +60,15 @@ def test_actual_picks(conn):
 
 
 def make_cfg(cfg, tmp_path):
-    cfg["data"]["db_path"] = str(tmp_path / "t.db")
-    cfg["output"]["frontend_data"] = str(tmp_path / "x" / "report.json")
+    cfg.data.db_path = str(tmp_path / "t.db")
+    cfg.output.frontend_data = str(tmp_path / "x" / "report.json")
     return cfg
 
 
 def test_export_report_writes_json(tmp_path, cfg):
     cfg = make_cfg(cfg, tmp_path)
     from top3.db import open_db
-    conn = open_db(cfg["data"]["db_path"])
+    conn = open_db(cfg.data.db_path)
     seed_run(conn, 4, 0)
     conn.close()
     path = export_report(cfg)
@@ -110,7 +110,7 @@ def test_etf_ranking_in_the_report(conn, cfg, tmp_path):
     from top3.report_data import _etf
     csv = tmp_path / "e.csv"
     csv.write_text("ticker,name,category\nVTI,Total Stock Market,Amplio\nVUSB,Ultra-Short Bond,Bonos\n", encoding="utf-8")
-    cfg["etf"].update(csv=str(csv), top_n=1, risk_free_ticker="VUSB")
+    cfg.etf.csv, cfg.etf.top_n, cfg.etf.risk_free_ticker = str(csv), 1, "VUSB"
     assert _etf(conn, cfg) is None
     _add_etf(conn, "2024-08-29", ["VTI", "VUSB"])
     _add_etf(conn, "2024-08-30", ["VUSB", "VTI"])
@@ -126,7 +126,7 @@ def test_etf_ranking_in_the_report(conn, cfg, tmp_path):
 
 def test_etf_report_survives_a_missing_csv(conn, cfg, tmp_path):
     from top3.report_data import _etf
-    cfg["etf"].update(csv=str(tmp_path / "no_existe.csv"), risk_free_ticker="")
+    cfg.etf.csv, cfg.etf.risk_free_ticker = str(tmp_path / "no_existe.csv"), ""
     _add_etf(conn, "2024-08-30", ["VTI"])
     etf = _etf(conn, cfg)
     assert etf["rows"][0]["name"] == "" and etf["risk_free"] is None and etf["changes"] is None

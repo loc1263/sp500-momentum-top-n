@@ -9,7 +9,7 @@ import pandas as pd
 import requests
 
 from . import errors as E
-from .config import DataSettings
+from .config import DataConfig
 from .db import fetched_today, set_meta
 from .logs import log
 
@@ -21,7 +21,7 @@ def parse_tickers(tickers_str) -> list[str]:
             if t.strip()]
 
 
-def _get_text(url: str, settings: DataSettings, timeout: int | None = None) -> str:
+def _get_text(url: str, settings: DataConfig, timeout: int | None = None) -> str:
     response = requests.get(url, headers={"User-Agent": settings.user_agent},
                             timeout=timeout or settings.http_timeout)
     log.debug("GET %s -> HTTP %s, %d bytes", url, response.status_code, len(response.content))
@@ -29,7 +29,7 @@ def _get_text(url: str, settings: DataSettings, timeout: int | None = None) -> s
     return response.text
 
 
-def download_historical_constituents(conn: sqlite3.Connection, settings: DataSettings) -> None:
+def download_historical_constituents(conn: sqlite3.Connection, settings: DataConfig) -> None:
     log.info("Descargando listas históricas del S&P 500...")
     text = _get_text(settings.historical_url, settings, settings.historical_timeout)
     df = pd.read_csv(StringIO(text))
@@ -50,7 +50,7 @@ def download_historical_constituents(conn: sqlite3.Connection, settings: DataSet
     log.info("Listas históricas guardadas: %s a %s (%d filas)", rows[0][0], rows[-1][0], len(rows))
 
 
-def download_current_constituents(conn: sqlite3.Connection, settings: DataSettings) -> None:
+def download_current_constituents(conn: sqlite3.Connection, settings: DataConfig) -> None:
     log.info("Obteniendo lista actual del S&P 500 (Wikipedia)...")
     table = pd.read_html(StringIO(_get_text(settings.wikipedia_url, settings)))[0]
     tickers = table["Symbol"].str.replace(".", "-", regex=False).tolist()
@@ -61,7 +61,7 @@ def download_current_constituents(conn: sqlite3.Connection, settings: DataSettin
     log.info("Lista actual guardada: %d tickers", len(tickers))
 
 
-def download_index_changes(conn: sqlite3.Connection, settings: DataSettings) -> None:
+def download_index_changes(conn: sqlite3.Connection, settings: DataConfig) -> None:
     """Altas/bajas del índice según Wikipedia; completan lo que el CSV histórico no alcanza."""
     log.info("Descargando cambios del índice (Wikipedia)...")
     tables = pd.read_html(StringIO(_get_text(settings.wikipedia_changes_url, settings)))
@@ -90,7 +90,7 @@ def download_index_changes(conn: sqlite3.Connection, settings: DataSettings) -> 
              min(r[0] for r in rows), max(r[0] for r in rows))
 
 
-def ensure_constituents(conn: sqlite3.Connection, settings: DataSettings, use_cache: bool) -> None:
+def ensure_constituents(conn: sqlite3.Connection, settings: DataConfig, use_cache: bool) -> None:
     """Descarga (o reutiliza del mismo día) el histórico (CSV), los cambios posteriores y la lista actual (Wikipedia)."""
     for key, download, label in (
         ("constituents_history_fetched", download_historical_constituents, "histórica (CSV)"),

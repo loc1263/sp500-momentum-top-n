@@ -7,6 +7,7 @@ import pandas as pd
 
 from . import tables, universe
 from .analysis import Context, Term
+from .config import Config
 from .logs import log
 
 HTML_CSS = """
@@ -108,14 +109,14 @@ Excluye tickers sin datos en Yahoo (sesgo de supervivencia).</footer>
     return path
 
 
-def write_report(cfg: dict, kind: str, min_cap_b: float | None, title: str, subtitle: str, body: str,
+def write_report(cfg: Config, kind: str, min_cap_b: float | None, title: str, subtitle: str, body: str,
                  file_suffix: str = "") -> Path:
     """Escribe un reporte de tipo `kind` ("backtest", "sweep", "offsets" o "actual") con el nombre y la carpeta
     definidos en [output] del config, más el sufijo de universo y de período."""
-    out = cfg["output"]
-    subdir = out["actual_subdir"] if kind == "actual" else out["backtest_subdir"]
-    prefix = out[f"{kind}_prefix"] + universe.suffix(min_cap_b) + file_suffix
-    return write_html(out["dir"], prefix, title, subtitle, body, subdir)
+    out = cfg.output
+    subdir = out.actual_subdir if kind == "actual" else out.backtest_subdir
+    prefix = getattr(out, f"{kind}_prefix") + universe.suffix(min_cap_b) + file_suffix
+    return write_html(out.dir, prefix, title, subtitle, body, subdir)
 
 
 def _period_subtitle(ctx: Context) -> str:
@@ -188,9 +189,9 @@ def offsets_report(ctx: Context, terms: list[Term], min_cap_b: float | None) -> 
                         _period_subtitle(ctx) + universe.subtitle(min_cap_b), body, ctx.file_suffix)
 
 
-def etf_report(cfg: dict, as_of: str, horizons: list[int], top_n: int, headers: list[str], rows: list[list[str]],
+def etf_report(cfg: Config, as_of: str, horizons: list[int], top_n: int, headers: list[str], rows: list[list[str]],
                notes: list[str], historical: bool, risk_free: str | None = None) -> Path:
-    out = cfg["output"]
+    out = cfg.output
     right = tuple(range(4, len(headers)))
     signed = tuple(range(5, 5 + len(horizons))) + (len(headers) - 2, len(headers) - 1)
     excess = (f" El retorno es el exceso sobre {html.escape(risk_free)}, un ETF de bonos ultracortos usado como "
@@ -207,11 +208,11 @@ def etf_report(cfg: dict, as_of: str, horizons: list[int], top_n: int, headers: 
         + html_table(headers, rows, right_cols=right, signed_cols=signed)
         + ''.join(f'<p class="sub">{html.escape(n)}</p>' for n in notes if n))
     suffix = f"_asof_{as_of}" if historical else ""
-    return write_html(out["dir"], out["etf_prefix"] + suffix, "ETFs de Vanguard - momentum ajustado por riesgo",
-                      f"Datos al {as_of}", body, out["etf_subdir"])
+    return write_html(out.dir, out.etf_prefix + suffix, "ETFs de Vanguard - momentum ajustado por riesgo",
+                      f"Datos al {as_of}", body, out.etf_subdir)
 
 
-def actual_report(cfg: dict, top_n: int, months: int, min_cap_b: float | None, as_of, window: pd.DataFrame,
+def actual_report(cfg: Config, top_n: int, months: int, min_cap_b: float | None, as_of, window: pd.DataFrame,
                   headers: list[str], rows: list[list[str]], weight: float, notes: list[str] = (),
                   alternates: list[list[str]] = ()) -> Path:
     body = (

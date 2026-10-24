@@ -61,7 +61,7 @@ def print_backtest(ctx: Context, term: Term, min_cap_b: float | None) -> None:
     base = term.base
     n = term.months
     median, low, high = term.cagr_stats()
-    years = ctx.cfg["backtest"]["backtest_years"]
+    years = ctx.cfg.backtest.backtest_years
     print_banner(f"RESULTADOS BACKTEST - Top {ctx.top_n}{universe.title(min_cap_b)} (Point-in-Time)", 65)
     print(f"Período:             {ctx.start_date.date()} a {ctx.end_date.date()} ({years:g} años)")
     print(f"Plazo:               {n} meses (ranking {n} meses, rebalanceo cada {n} meses)")

@@ -28,7 +28,7 @@ def test_compact_layout():
 
 
 def test_write_report_names_and_folders(cfg, tmp_path):
-    cfg["output"]["dir"] = str(tmp_path)
+    cfg.output.dir = str(tmp_path)
     sweep = html_report.write_report(cfg, "sweep", 10, "t", "s", "b", "_5y")
     actual = html_report.write_report(cfg, "actual", None, "t", "s", "b")
     assert sweep.parent == tmp_path / "backtest" and sweep.name == f"top3_sweep_largecap_5y_{date.today():%Y%m%d}.html"
@@ -36,7 +36,7 @@ def test_write_report_names_and_folders(cfg, tmp_path):
 
 
 def test_reports_for_each_kind(cfg, conn, settings, tmp_path):
-    cfg["output"]["dir"] = str(tmp_path)
+    cfg.output.dir = str(tmp_path)
     ctx = Context(conn, cfg, settings, None, pd.DataFrame(), pd.Timestamp("2023-01-01"), pd.Timestamp("2024-01-01"),
                   file_suffix="_1y")
     terms = [Term(3, [calendar(0, 1500, 30.0), calendar(1, 1200, 20.0)]), Term(6, [])]

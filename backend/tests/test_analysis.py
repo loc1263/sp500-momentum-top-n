@@ -18,7 +18,7 @@ def test_term_base_and_stats():
 @pytest.fixture
 def ctx(conn, cfg, settings):
     prices = make_prices()
-    cfg["backtest"]["backtest_years"] = 2
+    cfg.backtest.backtest_years = 2
     return Context(conn, cfg, settings, FakeConstituents(list(prices.columns)), prices,
                    pd.Timestamp("2023-09-01"), pd.Timestamp("2024-12-31"))
 
@@ -48,7 +48,7 @@ def test_run_calendars_skips_failed_offsets(ctx):
 
 
 def test_run_terms_covers_configured_months(ctx):
-    ctx.cfg["simulation"]["months"] = [2, 3]
+    ctx.cfg.simulation.months = [2, 3]
     assert [(t.months, len(t.calendars)) for t in run_terms(ctx)] == [(2, 2), (3, 3)]
 
 

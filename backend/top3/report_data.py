@@ -7,6 +7,7 @@ from datetime import date, datetime
 from pathlib import Path
 
 from . import rotation
+from .config import Config
 from .db import open_db, run_key
 from .logs import log
 from .universe import label
@@ -187,15 +188,15 @@ def _actual(conn: sqlite3.Connection, today: date | None = None) -> list[dict]:
     return out
 
 
-def _etf(conn: sqlite3.Connection, cfg: dict) -> dict | None:
+def _etf(conn: sqlite3.Connection, cfg: Config) -> dict | None:
     """Último ranking de ETFs de Vanguard guardado, con nombre y categoría de la lista (CSV)."""
     as_of = conn.execute("SELECT MAX(as_of) FROM etf_scores").fetchone()[0]
     if not as_of:
         return None
-    etf_cfg = cfg["etf"]
-    top_n = int(etf_cfg["top_n"])
+    etf_cfg = cfg.etf
+    top_n = etf_cfg.top_n
     try:
-        with open(etf_cfg["csv"], encoding="utf-8", newline="") as f:
+        with open(etf_cfg.csv, encoding="utf-8", newline="") as f:
             info = {r["ticker"].strip().upper(): r for r in csv.DictReader(f)}
     except OSError:
         info = {}
@@ -208,7 +209,7 @@ def _etf(conn: sqlite3.Connection, cfg: dict) -> dict | None:
                      "category": meta.get("category", "").strip(), "score": score, "vol": vol, "max_dd": max_dd,
                      "sma_dist": sma_dist, "returns": json.loads(returns)})
     prev_as_of, prev = rotation.previous_etf_top(conn, as_of, top_n)
-    risk_free = (etf_cfg.get("risk_free_ticker") or "").upper()
+    risk_free = etf_cfg.risk_free_ticker.upper()
     return {"as_of": as_of, "run_at": run_at, "top_n": top_n, "horizons": sorted(int(h) for h in rows[0]["returns"]),
             "risk_free": risk_free if any(r["ticker"] == risk_free for r in rows) else None,
             "previous_as_of": prev_as_of,
@@ -222,23 +223,23 @@ def _quant(conn: sqlite3.Connection) -> dict | None:
     return json.loads(row[0]) if row else None
 
 
-def build_report(conn: sqlite3.Connection, cfg: dict) -> dict:
-    bt = cfg["backtest"]
-    initial_capital = float(bt["initial_capital"])
+def build_report(conn: sqlite3.Connection, cfg: Config) -> dict:
+    bt = cfg.backtest
+    initial_capital = bt.initial_capital
     run_day, latest = _latest_runs(conn)
-    if not bt["start_date"]:  # solo los períodos configurados (ignora corridas sueltas de otros años)
-        wanted = {float(y) for y in bt["periods_years"]}
+    if not bt.start_date:  # solo los períodos configurados (ignora corridas sueltas de otros años)
+        wanted = {float(y) for y in bt.periods_years}
         latest = {k: v for k, v in latest.items() if k[1] in wanted}
     backtest = _backtest(conn, latest, initial_capital)
     backtest_skip = _backtest(conn, latest, initial_capital, skip_months=1)
     return {
         "generated_at": datetime.now().isoformat(timespec="seconds"),
         "run_date": run_day,
-        "settings": {"top_n": int(bt["top_n"]), "months": int(bt["months"]), "initial_capital": initial_capital,
-                     "commission": float(bt["commission"]),
-                     "terms": [int(m) for m in cfg["simulation"]["months"]],
-                     "backtest_years": float(bt["backtest_years"]),
-                     "min_cap_billions": float(cfg["universe"]["min_cap_billions"]),
+        "settings": {"top_n": bt.top_n, "months": bt.months, "initial_capital": initial_capital,
+                     "commission": bt.commission,
+                     "terms": list(cfg.simulation.months),
+                     "backtest_years": bt.backtest_years,
+                     "min_cap_billions": cfg.universe.min_cap_billions,
                      "periods_years": sorted({p["years"] for u in backtest for p in u["periods"]})},
         "actual": _actual(conn),
         "etf": _etf(conn, cfg),
@@ -248,14 +249,14 @@ def build_report(conn: sqlite3.Connection, cfg: dict) -> dict:
     }
 
 
-def export_report(cfg: dict) -> Path:
+def export_report(cfg: Config) -> Path:
     """Escribe el JSON para el frontend ([output] frontend_data) y devuelve la ruta."""
-    conn = open_db(cfg["data"]["db_path"])
+    conn = open_db(cfg.data.db_path)
     try:
         report = build_report(conn, cfg)
     finally:
         conn.close()
-    path = Path(cfg["output"]["frontend_data"])
+    path = Path(cfg.output.frontend_data)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(report, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     log.info("JSON del frontend guardado: %s (%d universos de backtest, %d Top actual)",

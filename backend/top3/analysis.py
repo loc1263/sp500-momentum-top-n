@@ -2,13 +2,13 @@
 import json
 import sqlite3
 import statistics
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 
 import pandas as pd
 
 from . import errors as E
-from .config import DataSettings
+from .config import Config, DataConfig
 from .constituents import Constituents
 from .engine import BacktestResult, Skipped, report_skipped, run_backtest
 from .logs import log
@@ -25,8 +25,8 @@ class Context:
     """Todo lo que comparten las corridas de un período: datos, fechas y configuración."""
 
     conn: sqlite3.Connection
-    cfg: dict
-    settings: DataSettings
+    cfg: Config
+    settings: DataConfig
     constituents: Constituents
     prices: pd.DataFrame
     start_date: pd.Timestamp
@@ -45,25 +45,25 @@ class Context:
 
     @property
     def initial_capital(self) -> float:
-        return float(self.cfg["backtest"]["initial_capital"])
+        return self.cfg.backtest.initial_capital
 
     @property
     def commission(self) -> float:
-        return float(self.cfg["backtest"]["commission"])
+        return self.cfg.backtest.commission
 
     @property
     def top_n(self) -> int:
-        return int(self.cfg["backtest"]["top_n"])
+        return self.cfg.backtest.top_n
 
     @property
     def terms(self) -> list[int]:
-        return [int(m) for m in self.cfg["simulation"]["months"]]
+        return list(self.cfg.simulation.months)
 
     def lookback_days(self, months: int) -> int:
-        return months * int(self.cfg["backtest"]["trading_days_per_month"])
+        return months * self.cfg.backtest.trading_days_per_month
 
     def skip_days(self, skip_months: int) -> int:
-        return skip_months * int(self.cfg["backtest"]["trading_days_per_month"])
+        return skip_months * self.cfg.backtest.trading_days_per_month
 
 
 @dataclass(kw_only=True)
@@ -141,7 +141,7 @@ def run_calendars(ctx: Context, months: int, universe: Universe | None = None,
         except Exception as e:
             log.warning(E.BKT_TERM_FAILED.msg("Plazo %d meses, desfase %d sin resultado: %s"), months, offset, e)
             continue
-        save_run(ctx.conn, {**ctx.cfg, "sweep_months": months, "offset_months": offset,
+        save_run(ctx.conn, {**asdict(ctx.cfg), "sweep_months": months, "offset_months": offset,
                             "min_cap_billions": min_cap_b, "skip_months": skip_months},
                  start.strftime("%Y-%m-%d"), ctx.end_date.strftime("%Y-%m-%d"), result)
         calendars.append(Calendar(**vars(result), offset=offset))

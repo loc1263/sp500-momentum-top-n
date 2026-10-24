@@ -6,7 +6,7 @@ import pandas as pd
 
 from . import console, errors as E, html_report, universe as universes
 from .analysis import SKIP_MONTHS, Context, attach_market_caps, run_calendars, run_terms
-from .config import DataSettings
+from .config import DataConfig
 from .logs import log
 from .shares import ensure_shares
 from .universe import Universe
@@ -15,7 +15,7 @@ from .universe import Universe
 class UniverseBuilder:
     """Crea el Universe de cada umbral de capitalización reutilizando las acciones en circulación ya bajadas."""
 
-    def __init__(self, conn: sqlite3.Connection, prices: pd.DataFrame, use_cache: bool, settings: DataSettings,
+    def __init__(self, conn: sqlite3.Connection, prices: pd.DataFrame, use_cache: bool, settings: DataConfig,
                  known_shares: dict[str, float] | None = None):
         self.conn, self.prices, self.use_cache, self.settings = conn, prices, use_cache, settings
         self.known_shares = known_shares if known_shares is not None else {}  # se comparte con los Context

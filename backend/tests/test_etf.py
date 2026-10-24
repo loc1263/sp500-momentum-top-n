@@ -112,33 +112,33 @@ def test_the_shipped_etf_list_is_sane():
 
 
 def _run(cfg, tmp_path, monkeypatch, data, **kwargs):
-    cfg["data"]["db_path"] = str(tmp_path / "t.db")
-    cfg["output"]["dir"] = str(tmp_path / "out")
+    cfg.data.db_path = str(tmp_path / "t.db")
+    cfg.output.dir = str(tmp_path / "out")
     csv = tmp_path / "e.csv"
     csv.write_text("ticker,name,category\n" + "\n".join(f"{t},{t} ETF,Cat" for t in data.columns), encoding="utf-8")
-    cfg["etf"]["csv"] = str(csv)
-    cfg["etf"]["update_list"] = False                    # los tests no usan la red
+    cfg.etf.csv = str(csv)
+    cfg.etf.update_list = False                    # los tests no usan la red
     monkeypatch.setattr(etf, "download_recent", lambda tickers, start, end, batch_size: data[tickers])
     return etf.run_etf(cfg, **kwargs)
 
 
 def test_run_etf_saves_ranking_and_writes_report(cfg, tmp_path, monkeypatch, capsys):
     import sqlite3
-    cfg["etf"]["risk_free_ticker"] = ""
+    cfg.etf.risk_free_ticker = ""
     data = prices(A=(0.002, 0.005), B=(0.0005, 0.005), C=(-0.001, 0.005))
     html = _run(cfg, tmp_path, monkeypatch, data, top_n=2).read_text(encoding="utf-8")
     assert "Ranking global" in html and "A ETF" in html and "primera corrida guardada" in html
     out = capsys.readouterr().out
     assert "ETFs DE VANGUARD" in out and out.index("A ") < out.index("B ")
-    db = sqlite3.connect(cfg["data"]["db_path"])
+    db = sqlite3.connect(cfg.data.db_path)
     rows = db.execute("SELECT ticker, rank, returns FROM etf_scores ORDER BY rank").fetchall()
     assert [r[0] for r in rows] == ["A", "B", "C"] and set(json.loads(rows[0][2])) == {"3", "6", "12"}
 
 
 def test_run_etf_twice_replaces_and_reports_changes_against_previous_day(cfg, tmp_path, monkeypatch):
     import sqlite3
-    cfg["etf"]["risk_free_ticker"] = ""
-    cfg["etf"]["min_vol"] = 0                  # B hoy sube a ritmo constante (volatilidad casi nula)
+    cfg.etf.risk_free_ticker = ""
+    cfg.etf.min_vol = 0                  # B hoy sube a ritmo constante (volatilidad casi nula)
     data = prices(A=(0.002, 0.005), B=(0.0005, 0.005), C=(-0.001, 0.005))
     _run(cfg, tmp_path, monkeypatch, data.iloc[:-1], top_n=1)            # ayer: A primero
     swapped = data.copy()
@@ -146,26 +146,26 @@ def test_run_etf_twice_replaces_and_reports_changes_against_previous_day(cfg, tm
     html = _run(cfg, tmp_path, monkeypatch, swapped, top_n=1).read_text(encoding="utf-8")
     assert "entran B; salen A" in html
     _run(cfg, tmp_path, monkeypatch, swapped, top_n=1)                    # repetir no duplica
-    db = sqlite3.connect(cfg["data"]["db_path"])
+    db = sqlite3.connect(cfg.data.db_path)
     assert db.execute("SELECT COUNT(*) FROM etf_scores").fetchone()[0] == 6  # 3 ETFs x 2 días
 
 
 def test_run_etf_as_of_truncates_the_data_and_is_not_saved(cfg, tmp_path, monkeypatch):
-    cfg["etf"]["risk_free_ticker"] = ""
+    cfg.etf.risk_free_ticker = ""
     data = prices(A=(0.002, 0.005), B=(0.0005, 0.005))
     as_of = data.index[-20].date().isoformat()
     path = _run(cfg, tmp_path, monkeypatch, data, as_of=as_of)
     assert path.name.startswith(f"top3_etf_asof_{as_of}_") and as_of in path.read_text(encoding="utf-8")
     assert "no se guarda" in path.read_text(encoding="utf-8")
     from top3.db import open_db
-    db = open_db(cfg["data"]["db_path"])           # el historial real queda limpio
+    db = open_db(cfg.data.db_path)           # el historial real queda limpio
     assert db.execute("SELECT COUNT(*) FROM etf_scores").fetchone()[0] == 0
     _run(cfg, tmp_path, monkeypatch, data)         # y la corrida de hoy no se compara con la consulta pasada
     assert db.execute("SELECT COUNT(DISTINCT as_of) FROM etf_scores").fetchone()[0] == 1
 
 
 def test_run_etf_warns_for_missing_prices_and_exclusions(cfg, tmp_path, monkeypatch, caplog):
-    cfg["etf"]["risk_free_ticker"] = ""
+    cfg.etf.risk_free_ticker = ""
     data = prices(A=(0.002, 0.005), B=(0.0005, 0.005))
     data["NEW"] = np.nan
     data.loc[data.index[-50:], "NEW"] = 100.0     # ETF nuevo: poca historia
@@ -176,7 +176,7 @@ def test_run_etf_warns_for_missing_prices_and_exclusions(cfg, tmp_path, monkeypa
 
 
 def test_run_etf_without_risk_free_in_list_warns(cfg, tmp_path, monkeypatch, caplog):
-    cfg["etf"]["risk_free_ticker"] = "NOPE"
+    cfg.etf.risk_free_ticker = "NOPE"
     _run(cfg, tmp_path, monkeypatch, prices(A=(0.002, 0.005), B=(0.0005, 0.005)))
     assert "TOP-ETF-005" in caplog.text
 

@@ -525,6 +525,7 @@ Para buscar en el log: `grep TOP-BKT backend/log/top3_backtest.log`.
 | `TOP-CFG-001` | Aviso | No existe el archivo de configuración | Se usan los valores por defecto. Crea config.toml o pasa --config con la ruta correcta. |
 | `TOP-CFG-002` | Error | start_date no es anterior a end_date | Corrige [backtest] start_date / end_date o backtest_years en config.toml. |
 | `TOP-CFG-003` | Aviso | El período del backtest empieza antes del histórico descargado | Sube [data] history_years (debe superar el mayor período + 1 año). |
+| `TOP-CFG-004` | Error | Sección o clave desconocida en la configuración | Casi siempre es un typo en config.toml: compáralo con docs/configuracion.md. |
 | `TOP-NET-001` | Error | Falló la descarga de la composición del índice | Revisa la conexión; se usa lo guardado en SQLite. Reintenta o usa --no-cache. |
 | `TOP-NET-002` | Aviso | Se usa la composición guardada en SQLite | Los datos pueden estar desactualizados; vuelve a correr cuando haya conexión. |
 | `TOP-NET-003` | Error | Falló la descarga de la lista actual del S&P 500 | Se usa la guardada en SQLite (puede ser vieja). Revisa la conexión. |

@@ -14,6 +14,7 @@ import pandas as pd
 
 from . import console, errors as E, html_report, rotation, vanguard
 from .actual import download_recent
+from .config import Config
 from .db import open_db
 from .logs import log
 
@@ -131,12 +132,12 @@ def describe_changes(previous_as_of: str | None, changes: dict[str, list[str]], 
             f"salen {', '.join(changes['exited']) or '-'}.")
 
 
-def refresh_list(cfg: dict) -> None:
+def refresh_list(cfg: Config) -> None:
     """Agrega a la lista (`[etf] csv`) los ETFs nuevos de Vanguard. Si no se puede, sigue con la lista guardada."""
-    etf_cfg, data = cfg["etf"], cfg["data"]
+    etf_cfg, data = cfg.etf, cfg.data
     try:
-        etfs = vanguard.fetch_etfs(etf_cfg["list_url"], data["user_agent"], int(data["http_timeout"]))
-        added, gone = vanguard.update_list(etf_cfg["csv"], etfs)
+        etfs = vanguard.fetch_etfs(etf_cfg.list_url, data.user_agent, data.http_timeout)
+        added, gone = vanguard.update_list(etf_cfg.csv, etfs)
     except Exception as e:
         log.warning(E.ETF_LIST_UPDATE.msg("No se pudo actualizar la lista desde Vanguard: %s"), e)
         return
@@ -146,35 +147,35 @@ def refresh_list(cfg: dict) -> None:
         log.info("Lista de ETFs: al día con Vanguard (%d ETFs)", len(etfs))
     if gone:
         log.info("Lista de ETFs: Vanguard ya no lista %s (quítalos de %s si dejaron de cotizar)",
-                 ", ".join(gone), etf_cfg["csv"])
+                 ", ".join(gone), etf_cfg.csv)
 
 
-def run_etf(cfg: dict, as_of: str | None = None, top_n: int | None = None, csv_path: str | None = None,
+def run_etf(cfg: Config, as_of: str | None = None, top_n: int | None = None, csv_path: str | None = None,
             update_list: bool = True) -> Path:
     """Descarga los precios, calcula el ranking, lo guarda en SQLite, lo imprime y escribe el reporte HTML.
 
     Con la lista del config (sin `csv_path`) y `[etf] update_list`, antes agrega los ETFs nuevos de Vanguard."""
-    etf_cfg = cfg["etf"]
-    if update_list and csv_path is None and etf_cfg["update_list"]:
+    etf_cfg = cfg.etf
+    if update_list and csv_path is None and etf_cfg.update_list:
         refresh_list(cfg)
-    horizons = sorted(int(h) for h in etf_cfg["horizons_months"])
-    top_n = top_n or int(etf_cfg["top_n"])
-    tdpm = int(cfg["backtest"]["trading_days_per_month"])
-    universe = load_universe(csv_path or etf_cfg["csv"])
+    horizons = sorted(etf_cfg.horizons_months)
+    top_n = top_n or etf_cfg.top_n
+    tdpm = cfg.backtest.trading_days_per_month
+    universe = load_universe(csv_path or etf_cfg.csv)
     end_day = datetime.fromisoformat(as_of).date() if as_of else date.today()
     start = (end_day - timedelta(days=max(horizons) * 31 + 60)).isoformat()  # margen para las ruedas necesarias
     log.info("ETFs de Vanguard: %d en la lista | plazos %s meses | datos hasta %s", len(universe), horizons, end_day)
 
     prices = download_recent(list(universe["ticker"]), start, (end_day + timedelta(days=1)).isoformat(),
-                             int(cfg["data"]["batch_size"]))
+                             cfg.data.batch_size)
     prices = prices[prices.index <= pd.Timestamp(end_day)].dropna(axis=1, how="all")
     without_prices = [t for t in universe["ticker"] if t not in prices.columns]
     if without_prices:
         log.warning(E.ETF_NO_PRICES.msg("%d ETFs de la lista sin precios en Yahoo: %s"), len(without_prices),
                     ", ".join(without_prices))
 
-    risk_free = (etf_cfg.get("risk_free_ticker") or "").upper() or None
-    min_vol = float(etf_cfg["min_vol"])
+    risk_free = etf_cfg.risk_free_ticker.upper() or None
+    min_vol = etf_cfg.min_vol
     scores, excluded = score_etfs(prices, horizons, tdpm, risk_free, min_vol)
     if risk_free and not scores.empty and scores.attrs["risk_free"] is None:
         log.warning(E.ETF_NO_RISK_FREE.msg("La referencia libre de riesgo %s no está disponible: el score se calcula "
@@ -189,7 +190,7 @@ def run_etf(cfg: dict, as_of: str | None = None, top_n: int | None = None, csv_p
     if as_of:  # consulta puntual al pasado: no se guarda ni se compara, para no mezclarla con el historial real
         note = "Consulta a una fecha pedida: no se guarda ni se compara con otras corridas."
     else:
-        conn = open_db(cfg["data"]["db_path"])
+        conn = open_db(cfg.data.db_path)
         try:
             prev_as_of, prev_top = rotation.previous_etf_top(conn, data_day, top_n)
             save_scores(conn, data_day, scores, horizons)

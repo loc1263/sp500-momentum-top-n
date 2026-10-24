@@ -16,11 +16,11 @@ def main(argv=None) -> None:
     args = ap.parse_args(argv)
     configure_console()
     cfg = load_config(args.config)
-    setup_logging(cfg["output"]["backtest_log"].replace("backtest", "prune"), cfg["output"]["log_dir"])
+    setup_logging(cfg.output.prune_log, cfg.output.log_dir)
     log_config(cfg, args.config)
-    conn = open_db(cfg["data"]["db_path"])
+    conn = open_db(cfg.data.db_path)
     try:
-        n = maybe_prune_runs(conn, args.keep_days or int(cfg["data"]["runs_keep_days"]), force=True)
+        n = maybe_prune_runs(conn, args.keep_days or cfg.data.runs_keep_days, force=True)
     finally:
         conn.close()
     print(f"Corridas borradas: {n}")

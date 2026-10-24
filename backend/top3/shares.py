@@ -7,7 +7,7 @@ import pandas as pd
 import yfinance as yf
 
 from . import errors as E
-from .config import DataSettings
+from .config import DataConfig
 from .logs import log
 
 
@@ -19,7 +19,7 @@ def _fetch_shares(ticker: str) -> tuple[str, float | None]:
         return ticker, None
 
 
-def ensure_shares(conn: sqlite3.Connection, tickers: list[str], use_cache: bool, settings: DataSettings,
+def ensure_shares(conn: sqlite3.Connection, tickers: list[str], use_cache: bool, settings: DataConfig,
                   known: dict[str, float] | None = None) -> dict[str, float]:
     """Acciones en circulación (actuales) de `tickers`. Las guardadas hace menos de `shares_ttl_days` días se
     reutilizan (cambian por trimestre, no a diario); con --no-cache se vuelven a pedir.

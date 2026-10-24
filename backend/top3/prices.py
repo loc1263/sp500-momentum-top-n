@@ -7,7 +7,7 @@ import pandas as pd
 import yfinance as yf
 
 from . import errors as E, yahoo
-from .config import DataSettings
+from .config import DataConfig
 from .db import fetched_today, get_meta, set_meta
 from .logs import log
 
@@ -98,7 +98,7 @@ def remember_no_data(conn: sqlite3.Connection, gone: set[str], long: pd.DataFram
 
 
 def download_prices(conn: sqlite3.Connection, tickers: list[str], start: str, end: str,
-                    settings: DataSettings) -> None:
+                    settings: DataConfig) -> None:
     """Descarga completa: baja precios ajustados de todos los tickers y reemplaza lo guardado."""
     skip = known_no_data(conn, settings.no_data_ttl_days) & set(tickers)
     if skip:
@@ -122,7 +122,7 @@ def download_prices(conn: sqlite3.Connection, tickers: list[str], start: str, en
 
 
 def update_prices(conn: sqlite3.Connection, tickers: list[str], start: str, end: str,
-                  settings: DataSettings) -> None:
+                  settings: DataConfig) -> None:
     """Descarga incremental: solo lo que falta desde la última descarga.
 
     - Tickers nuevos (sin precios guardados): rango completo.
@@ -169,7 +169,7 @@ def update_prices(conn: sqlite3.Connection, tickers: list[str], start: str, end:
 
 
 def ensure_prices(conn: sqlite3.Connection, tickers: list[str], start: str, end: str, use_cache: bool,
-                  settings: DataSettings) -> None:
+                  settings: DataConfig) -> None:
     """Deja en SQLite los precios de `tickers` desde `start`: caché del día, actualización o descarga completa."""
     cached_start = get_meta(conn, "prices_start")
     has_data = conn.execute("SELECT 1 FROM prices LIMIT 1").fetchone() is not None

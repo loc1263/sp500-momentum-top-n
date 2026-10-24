@@ -31,7 +31,7 @@ def main(argv=None) -> None:
     args = parse_args(argv)
     configure_console()
     cfg = load_config(args.config)
-    setup_logging(cfg["output"]["etf_log"], cfg["output"]["log_dir"])
+    setup_logging(cfg.output.etf_log, cfg.output.log_dir)
     log_config(cfg, args.config)
     run_etf(cfg, as_of=args.as_of, top_n=args.top_n, csv_path=args.csv, update_list=not args.no_update)
     if not args.as_of:  # una consulta a una fecha pasada no se guarda, así que no cambia lo que muestra la web

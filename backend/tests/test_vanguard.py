@@ -84,7 +84,7 @@ class FakeResponse:
 def test_refresh_list_adds_new_etfs(cfg, tmp_path, monkeypatch, caplog):
     path = tmp_path / "e.csv"
     path.write_text("ticker,name,category\nE00,Fund 0,Cat\n", encoding="utf-8")
-    cfg["etf"]["csv"] = str(path)
+    cfg.etf.csv = str(path)
     monkeypatch.setattr(vanguard.requests, "get", lambda *a, **k: FakeResponse(response()))
     with caplog.at_level(logging.INFO):
         etf.refresh_list(cfg)
@@ -95,7 +95,7 @@ def test_refresh_list_adds_new_etfs(cfg, tmp_path, monkeypatch, caplog):
 def test_refresh_list_survives_a_failed_download_with_a_warning(cfg, tmp_path, monkeypatch, caplog):
     path = tmp_path / "e.csv"
     path.write_text("ticker,name,category\nE00,Fund 0,Cat\n", encoding="utf-8")
-    cfg["etf"]["csv"] = str(path)
+    cfg.etf.csv = str(path)
 
     def boom(*a, **k):
         raise ConnectionError("sin red")
@@ -113,7 +113,7 @@ def test_run_etf_only_updates_the_configured_list(cfg, tmp_path, monkeypatch):
         with pytest.raises(SystemExit):
             etf.run_etf(cfg, **kwargs)
     assert calls == [1]                  # solo con la lista del config y sin --no-update
-    cfg["etf"]["update_list"] = False
+    cfg.etf.update_list = False
     with pytest.raises(SystemExit):
         etf.run_etf(cfg)
     assert calls == [1]

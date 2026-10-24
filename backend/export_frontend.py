@@ -15,7 +15,7 @@ def main() -> None:
     ap.add_argument("--config", default="config.toml", help="Archivo de configuración (default: config.toml)")
     args = ap.parse_args()
     cfg = load_config(args.config)
-    setup_logging(cfg["output"]["export_log"], cfg["output"]["log_dir"])
+    setup_logging(cfg.output.export_log, cfg.output.log_dir)
     log_config(cfg, args.config)
     print(export_report(cfg))
 

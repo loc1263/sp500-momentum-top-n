@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 
 from .. import errors as E
-from ..config import DataSettings
+from ..config import Config
 from ..constituents import Constituents, ensure_constituents
 from ..db import open_db
 from ..logs import log
@@ -31,21 +31,21 @@ def _clean(value):
     return value
 
 
-def run_quant(cfg: dict, use_cache: bool = True) -> dict:
+def run_quant(cfg: Config, use_cache: bool = True) -> dict:
     """Actualiza precios, OHLCV y datos financieros, calcula los scores y Markowitz y guarda el resultado en SQLite."""
-    settings = DataSettings.from_config(cfg)
-    q = cfg["quant"]
+    settings = cfg.data
+    q = cfg.quant
     today = date.today()
-    history_start = (today - timedelta(days=round(float(cfg["data"]["history_years"]) * 365.25))).isoformat()
-    conn = open_db(cfg["data"]["db_path"])
+    history_start = (today - timedelta(days=round(cfg.data.history_years * 365.25))).isoformat()
+    conn = open_db(cfg.data.db_path)
     try:
         ensure_constituents(conn, settings, use_cache)
-        constituents = Constituents(conn, cfg["tickers"]["aliases"])
+        constituents = Constituents(conn, cfg.tickers.aliases)
         tickers = sorted(constituents.current)
         ensure_prices(conn, constituents.all_between(history_start, today), history_start,
                       (today + timedelta(days=1)).isoformat(), use_cache, settings)
         prices = load_prices(conn)
-        data = FU.ensure_fundamentals(conn, tickers, use_cache, int(q["fundamentals_ttl_days"]),
+        data = FU.ensure_fundamentals(conn, tickers, use_cache, q.fundamentals_ttl_days,
                                       settings.shares_workers)
         OH.ensure_ohlcv(conn, tickers, use_cache, settings.batch_size)
         ohlcv = OH.load_ohlcv(conn)
@@ -57,23 +57,23 @@ def run_quant(cfg: dict, use_cache: bool = True) -> dict:
 
 
 def compute(prices: pd.DataFrame, tickers: list[str], data: dict[str, dict], ohlcv: dict[str, pd.DataFrame],
-            cfg: dict) -> dict:
-    q = cfg["quant"]
-    top_n = int(q["top_n"])
+            cfg: Config) -> dict:
+    q = cfg.quant
+    top_n = q.top_n
     prices = prices.reindex(columns=tickers)
     as_of = prices.index[-1]
 
     returns = MO.momentum_returns(prices)
     momentum = MO.momentum_score(returns)
     frame = FU.indicators(data)
-    health = FU.health_score(frame, dict(zip(FU.GROUPS, (float(w) for w in q["health_weights"]))))
+    health = FU.health_score(frame, dict(zip(FU.GROUPS, q.health_weights)))
     technical = TE.technical_score(TE.indicators({k: v.reindex(columns=tickers) for k, v in ohlcv.items()}))
     table = frame.join(returns).join(momentum).join(health).join(technical.add_prefix("tec_"))
     scores = ["momentum", "health", "tec_technical"]
     ranked = table.dropna(subset=scores).copy()
     if len(ranked) < top_n:
         raise SystemExit(E.QNT_NO_SIGNAL.msg(f"Solo {len(ranked)} acciones tienen los tres scores."))
-    weights = np.array([float(w) for w in q["weights"]])
+    weights = np.array(q.weights)
     ranked["score"] = ranked[scores].to_numpy() @ weights / weights.sum()
     ranked = ranked.sort_values(["score", "momentum"], ascending=False)
     log.info("Acciones: %d en el índice, %d con momentum, %d con datos financieros, %d con datos técnicos, %d en el ranking "
@@ -81,10 +81,10 @@ def compute(prices: pd.DataFrame, tickers: list[str], data: dict[str, dict], ohl
              int(technical["technical"].notna().sum()), len(ranked))
 
     top = list(ranked.index[:top_n])
-    prior = float(q["risk_free"]) + float(q["equity_premium"])
-    mu, sigma = MK.inputs(prices[top], float(q["mu_shrink"]), prior)
-    optimal = MK.frontier(mu, sigma, float(q["vol_target"]), float(q["w_max"]), float(q["risk_free"]),
-                          ranked.loc[top, "sector"], float(q["sector_max"]))
+    prior = q.risk_free + q.equity_premium
+    mu, sigma = MK.inputs(prices[top], q.mu_shrink, prior)
+    optimal = MK.frontier(mu, sigma, q.vol_target, q.w_max, q.risk_free,
+                          ranked.loc[top, "sector"], q.sector_max)
     # los pesos de la tabla son los de la primera cartera disponible: máximo retorno o, si no se alcanza el riesgo, Sharpe
     weight = {w["ticker"]: w["weight"] for w in optimal["portfolios"][0]["weights"]}
 
@@ -109,11 +109,11 @@ def compute(prices: pd.DataFrame, tickers: list[str], data: dict[str, dict], ohl
                 "sin_datos_tecnicos": sorted(t for t in tickers if t not in technical["technical"].dropna().index)}
     return _clean({
         "as_of": as_of.date().isoformat(), "generated_at": datetime.now().isoformat(timespec="seconds"),
-        "settings": {"top_n": top_n, "vol_target": float(q["vol_target"]), "w_max": float(q["w_max"]),
-                     "sector_max": float(q["sector_max"]),
-                     "mu_shrink": float(q["mu_shrink"]), "risk_free": float(q["risk_free"]), "prior": prior,
-                     "weights": [float(w) for w in q["weights"]],
-                     "health_weights": dict(zip(FU.GROUPS, (float(w) for w in q["health_weights"])))},
+        "settings": {"top_n": top_n, "vol_target": q.vol_target, "w_max": q.w_max,
+                     "sector_max": q.sector_max,
+                     "mu_shrink": q.mu_shrink, "risk_free": q.risk_free, "prior": prior,
+                     "weights": list(q.weights),
+                     "health_weights": dict(zip(FU.GROUPS, q.health_weights))},
         "coverage": {"universe": len(tickers), "momentum": int(momentum.notna().sum()),
                      "health": int(health["health"].notna().sum()), "technical": int(technical["technical"].notna().sum()),
                      "ranked": len(ranked), "excluded": excluded},
@@ -123,9 +123,9 @@ def compute(prices: pd.DataFrame, tickers: list[str], data: dict[str, dict], ohl
     })
 
 
-def save(cfg: dict, payload: dict) -> None:
+def save(cfg: Config, payload: dict) -> None:
     """Guarda solo el último resultado."""
-    conn = open_db(cfg["data"]["db_path"])
+    conn = open_db(cfg.data.db_path)
     try:
         conn.execute("DELETE FROM quant_runs")
         conn.execute("INSERT INTO quant_runs (run_at, as_of, payload) VALUES (?, ?, ?)",

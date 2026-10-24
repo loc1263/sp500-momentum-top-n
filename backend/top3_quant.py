@@ -23,7 +23,7 @@ def main(argv=None) -> None:
     args = parse_args(argv)
     configure_console()
     cfg = load_config(args.config)
-    setup_logging(cfg["output"]["quant_log"], cfg["output"]["log_dir"])
+    setup_logging(cfg.output.quant_log, cfg.output.log_dir)
     log_config(cfg, args.config)
     payload = run_quant(cfg, use_cache=not args.no_cache)
     print(f"Ranking al {payload['as_of']} ({payload['coverage']['ranked']} acciones). Las mejores:")

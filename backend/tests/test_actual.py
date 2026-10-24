@@ -70,9 +70,9 @@ def test_compute_top_warns_about_tickers_left_out(caplog):
 
 
 def run_with_fakes(cfg, tmp_path, monkeypatch, prices):
-    cfg["data"]["db_path"] = str(tmp_path / "t.db")
-    cfg["output"]["dir"] = str(tmp_path / "out")
-    cfg["output"]["log_dir"] = str(tmp_path / "log")
+    cfg.data.db_path = str(tmp_path / "t.db")
+    cfg.output.dir = str(tmp_path / "out")
+    cfg.output.log_dir = str(tmp_path / "log")
     tickers = list(prices.columns)
     monkeypatch.setattr(actual, "get_current_tickers", lambda *a, **k: tickers)
     monkeypatch.setattr(actual, "get_prices", lambda *a, **k: prices)
@@ -85,7 +85,7 @@ def test_run_actual_twice_does_not_duplicate_rows(cfg, tmp_path, monkeypatch):
     prices = make_prices()
     run_with_fakes(cfg, tmp_path, monkeypatch, prices)
     run_with_fakes(cfg, tmp_path, monkeypatch, prices)
-    conn = open_db(cfg["data"]["db_path"])
+    conn = open_db(cfg.data.db_path)
     assert conn.execute("SELECT COUNT(*) FROM actual_picks").fetchone()[0] == 2
     conn.close()
 

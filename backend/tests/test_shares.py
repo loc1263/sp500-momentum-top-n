@@ -1,12 +1,11 @@
+from dataclasses import replace
 from datetime import date, timedelta
 
 from top3 import shares as shares_module
-from top3.config import DataSettings
 
 
 def settings_with(cfg, **changes):
-    cfg["data"].update(changes)
-    return DataSettings.from_config(cfg)
+    return replace(cfg.data, **changes)
 
 
 def store(conn, ticker, value, days_ago):

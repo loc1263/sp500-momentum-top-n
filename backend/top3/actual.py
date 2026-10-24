@@ -6,7 +6,7 @@ from pathlib import Path
 import pandas as pd
 
 from . import console, errors as E, html_report, rotation, universe as universes
-from .config import DataSettings
+from .config import Config, DataConfig
 from .constituents import download_current_constituents
 from .db import fetched_today, get_meta, open_db
 from .engine import rank_returns
@@ -17,7 +17,7 @@ from .universe import Universe
 
 
 def get_current_tickers(conn: sqlite3.Connection, aliases: dict[str, str], use_cache: bool,
-                        settings: DataSettings) -> list[str]:
+                        settings: DataConfig) -> list[str]:
     """Lista actual del S&P 500 (descargada hoy o la guardada) con los alias aplicados."""
     if not (use_cache and fetched_today(conn, "constituents_current_fetched")):
         try:
@@ -42,7 +42,7 @@ def download_recent(tickers: list[str], start: str, end: str, batch_size: int) -
 
 
 def get_prices(conn: sqlite3.Connection, tickers: list[str], start: str, end: str, use_cache: bool,
-               settings: DataSettings) -> pd.DataFrame:
+               settings: DataConfig) -> pd.DataFrame:
     """Precios desde `start`: usa la base SQLite si se descargó hoy (la deja el backtest) y completa lo que falte."""
     frames = []
     cached_start = get_meta(conn, "prices_start")
@@ -91,17 +91,17 @@ def compute_top(prices: pd.DataFrame, months: int, top_n: int, trading_days_per_
     return returns.head(top_n + extra), window
 
 
-def run_actual(cfg: dict, months: int, top_n: int, min_cap_b: float | None, use_cache: bool) -> Path:
+def run_actual(cfg: Config, months: int, top_n: int, min_cap_b: float | None, use_cache: bool) -> Path:
     """Calcula el Top actual, lo guarda en SQLite, lo imprime y escribe el reporte HTML."""
     log.info("Plazo: %d meses | Top %d | Universo: %s", months, top_n, universes.label(min_cap_b))
-    settings = DataSettings.from_config(cfg)
+    settings = cfg.data
     today = date.today()
     start = (today - timedelta(days=months * 31 + 45)).isoformat()  # margen para cubrir las ruedas necesarias
     end = (today + timedelta(days=1)).isoformat()
 
-    conn = open_db(cfg["data"]["db_path"])
+    conn = open_db(cfg.data.db_path)
     try:
-        tickers = get_current_tickers(conn, cfg["tickers"]["aliases"], use_cache, settings)
+        tickers = get_current_tickers(conn, cfg.tickers.aliases, use_cache, settings)
         prices = get_prices(conn, tickers, start, end, use_cache, settings)
 
         known, universe = None, None
@@ -109,8 +109,8 @@ def run_actual(cfg: dict, months: int, top_n: int, min_cap_b: float | None, use_
             known = ensure_shares(conn, list(prices.columns), use_cache, settings)
             universe = Universe(known, min_cap_b)
 
-        extra = int(cfg["backtest"].get("alternates", 0))
-        ranked, window = compute_top(prices, months, top_n, int(cfg["backtest"]["trading_days_per_month"]), universe,
+        extra = cfg.backtest.alternates
+        ranked, window = compute_top(prices, months, top_n, cfg.backtest.trading_days_per_month, universe,
                                      extra)
         shares = ensure_shares(conn, list(ranked.index), use_cache, settings, known=known)
 

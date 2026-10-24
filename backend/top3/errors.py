@@ -36,6 +36,8 @@ CFG_BAD_DATES = _code("TOP-CFG-002", "error", "start_date no es anterior a end_d
                       "Corrige [backtest] start_date / end_date o backtest_years en config.toml.")
 CFG_SHORT_HISTORY = _code("TOP-CFG-003", "warning", "El período del backtest empieza antes del histórico descargado",
                           "Sube [data] history_years (debe superar el mayor período + 1 año).")
+CFG_UNKNOWN_KEY = _code("TOP-CFG-004", "error", "Sección o clave desconocida en la configuración",
+                        "Casi siempre es un typo en config.toml: compáralo con docs/configuracion.md.")
 
 # Descargas
 NET_COMPOSITION = _code("TOP-NET-001", "error", "Falló la descarga de la composición del índice",

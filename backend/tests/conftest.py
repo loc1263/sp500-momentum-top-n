@@ -1,17 +1,17 @@
 import pytest
 
-from top3.config import DEFAULT_CONFIG, DataSettings
+from top3.config import Config, DataConfig
 from top3.db import open_db
 
 
 @pytest.fixture
-def cfg() -> dict:
-    return {section: dict(values) for section, values in DEFAULT_CONFIG.items()}
+def cfg() -> Config:
+    return Config()
 
 
 @pytest.fixture
-def settings(cfg) -> DataSettings:
-    return DataSettings.from_config(cfg)
+def settings(cfg) -> DataConfig:
+    return cfg.data
 
 
 @pytest.fixture

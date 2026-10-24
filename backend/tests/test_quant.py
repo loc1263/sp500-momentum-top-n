@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from top3.config import DEFAULT_CONFIG
+from top3.config import Config
 from top3.quant import fundamentals as FU, markowitz as MK, momentum as MO, technical as TE
 from top3.quant.run import compute
 
@@ -223,8 +223,8 @@ def test_compute_builds_the_final_ranking_and_markowitz():
     rng = np.random.default_rng(3)
     data = {t: info(returnOnEquity=float(rng.uniform(-0.1, 0.5)), debtToEquity=float(rng.uniform(5, 300)),
                     operatingMargins=float(rng.uniform(0, 0.4))) for t in prices.columns}
-    cfg = {section: dict(values) for section, values in DEFAULT_CONFIG.items()}
-    cfg["quant"].update(top_n=6, weights=[1, 1, 2])
+    cfg = Config()
+    cfg.quant.top_n, cfg.quant.weights = 6, [1, 1, 2]
     out = compute(prices, tickers, data, ohlcv_of(prices), cfg)
 
     ranking = out["ranking"]

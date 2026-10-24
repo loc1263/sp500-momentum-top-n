@@ -31,15 +31,15 @@ def main(argv=None) -> None:
     args = parse_args(argv)
     configure_console()
     cfg = load_config(args.config)
-    setup_logging(cfg["output"]["actual_log"], cfg["output"]["log_dir"])
+    setup_logging(cfg.output.actual_log, cfg.output.log_dir)
     log_config(cfg, args.config)
 
     min_cap_b = None
     if args.large_cap or args.min_cap_billions is not None:
         min_cap_b = (args.min_cap_billions if args.min_cap_billions is not None
-                     else float(cfg["universe"]["min_cap_billions"]))
-    run_actual(cfg, months=args.months or int(cfg["backtest"]["months"]),
-               top_n=args.top_n or int(cfg["backtest"]["top_n"]), min_cap_b=min_cap_b,
+                     else cfg.universe.min_cap_billions)
+    run_actual(cfg, months=args.months or cfg.backtest.months,
+               top_n=args.top_n or cfg.backtest.top_n, min_cap_b=min_cap_b,
                use_cache=not args.no_cache)
     export_report(cfg)
 

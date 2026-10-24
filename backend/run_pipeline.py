@@ -40,7 +40,7 @@ def build_steps(cfg, args):
         flags = list(pending)
         pending.clear()
         return flags
-    levels = [float(x) for x in cfg["universe"]["sweep_min_cap_billions"]]
+    levels = [float(x) for x in cfg.universe.sweep_min_cap_billions]
     steps = []
     if args.tests:
         steps.append(("Tests", [py, "-m", "pytest", "-q"]))
@@ -104,7 +104,7 @@ def main():
     print(f"\nTotal: {time.time() - t_start:.0f} s")
     items = merge_summaries(summary_file)
     if items:
-        print("\n" + "\n".join(format_summary(items, str(Path(cfg["output"]["log_dir"]) / "*.log"))),
+        print("\n" + "\n".join(format_summary(items, str(Path(cfg.output.log_dir) / "*.log"))),
               file=sys.stderr)
     sys.exit(1 if any(rc for _, rc, _ in results) else 0)
 

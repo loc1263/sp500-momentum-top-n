@@ -4,6 +4,7 @@ Cada N meses se compran, con ponderación igual, las N acciones del S&P 500 que 
 Todo se guarda en SQLite y, al terminar, se actualiza el JSON que lee el frontend.
 """
 import argparse
+from dataclasses import replace
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -11,7 +12,7 @@ import pandas as pd
 
 from top3 import errors as E
 from top3.analysis import Context
-from top3.config import DataSettings, load_config
+from top3.config import BacktestConfig, Config, load_config
 from top3.console import configure_console
 from top3.constituents import Constituents, ensure_constituents
 from top3.db import maybe_prune_runs, open_db
@@ -45,37 +46,37 @@ def parse_args(argv=None) -> argparse.Namespace:
     return ap.parse_args(argv)
 
 
-def resolve_periods(bt_cfg: dict, end_date: pd.Timestamp, years: float | None) -> list[tuple[float, pd.Timestamp]]:
+def resolve_periods(bt_cfg: BacktestConfig, end_date: pd.Timestamp, years: float | None) -> list[tuple[float, pd.Timestamp]]:
     """Períodos a evaluar como (años, fecha de inicio). Un start_date explícito en el config es un único período."""
-    if bt_cfg["start_date"]:
-        start = pd.to_datetime(bt_cfg["start_date"])
+    if bt_cfg.start_date:
+        start = pd.to_datetime(bt_cfg.start_date)
         return [(round((end_date - start).days / 365.25, 1), start)]
-    years_list = [years] if years else [float(y) for y in bt_cfg["periods_years"]]
+    years_list = [years] if years else [float(y) for y in bt_cfg.periods_years]
     return [(y, end_date - pd.DateOffset(years=int(y))) for y in sorted(years_list)]
 
 
-def resolve_levels(args: argparse.Namespace, cfg: dict) -> list[float]:
+def resolve_levels(args: argparse.Namespace, cfg: Config) -> list[float]:
     """Umbrales de capitalización a correr (0 = índice completo)."""
     if args.large_cap or args.min_cap_billions is not None:
         return [args.min_cap_billions if args.min_cap_billions is not None
-                else float(cfg["universe"]["min_cap_billions"])]
+                else cfg.universe.min_cap_billions]
     if args.sweep:  # --sweep sin filtro explícito: todos los universos configurados
-        return [float(x) for x in cfg["universe"]["sweep_min_cap_billions"]]
+        return [float(x) for x in cfg.universe.sweep_min_cap_billions]
     return [0.0]
 
 
-def run(args: argparse.Namespace, cfg: dict) -> list[Path]:
+def run(args: argparse.Namespace, cfg: Config) -> list[Path]:
     """Actualiza los datos y corre el backtest de cada período; devuelve los reportes HTML generados."""
     use_cache = not args.no_cache
     log.info("Caché: %s", "activada (se reutiliza lo descargado hoy)" if use_cache else "DESACTIVADA (--no-cache)")
-    bt_cfg = cfg["backtest"]
-    settings = DataSettings.from_config(cfg)
+    bt_cfg = cfg.backtest
+    settings = cfg.data
 
     today = date.today()
-    history_start = (today - timedelta(days=round(float(cfg["data"]["history_years"]) * 365.25))).isoformat()
+    history_start = (today - timedelta(days=round(cfg.data.history_years * 365.25))).isoformat()
     price_end = (today + timedelta(days=1)).isoformat()  # yfinance: end exclusivo
 
-    end_date = pd.to_datetime(bt_cfg["end_date"] or today)
+    end_date = pd.to_datetime(bt_cfg.end_date or today)
     periods = resolve_periods(bt_cfg, end_date, args.years)
     for years, start_date in periods:
         if start_date >= end_date:
@@ -87,10 +88,10 @@ def run(args: argparse.Namespace, cfg: dict) -> list[Path]:
             log.warning(E.CFG_SHORT_HISTORY.msg("El inicio del backtest de %g años (%s) es anterior al histórico descargado (%s); "
                                             "subí [data] history_years"), years, start_date.date(), history_start)
 
-    conn = open_db(cfg["data"]["db_path"])
+    conn = open_db(cfg.data.db_path)
     try:
         ensure_constituents(conn, settings, use_cache)
-        constituents = Constituents(conn, cfg["tickers"]["aliases"])
+        constituents = Constituents(conn, cfg.tickers.aliases)
         tickers = constituents.all_between(history_start, today)
         log.info("Tickers únicos que pasaron por el S&P 500 en el histórico: %d", len(tickers))
 
@@ -100,12 +101,12 @@ def run(args: argparse.Namespace, cfg: dict) -> list[Path]:
         levels = resolve_levels(args, cfg)
         known_shares: dict[str, float] = {}  # acciones en circulación ya bajadas: se reutilizan en toda la corrida
         build_universe = UniverseBuilder(conn, prices, use_cache, settings, known_shares)
-        months = args.months or int(bt_cfg["months"])
+        months = args.months or bt_cfg.months
 
         reports: list[Path] = []
         for years, start_date in periods:
             # Cada período lleva su propio config (años) y sufijo de los HTML (_5y, _10y...)
-            ctx = Context(conn, {**cfg, "backtest": {**bt_cfg, "backtest_years": years}}, settings, constituents,
+            ctx = Context(conn, replace(cfg, backtest=replace(bt_cfg, backtest_years=years)), settings, constituents,
                           prices, start_date, end_date, use_cache, file_suffix=f"_{years:g}y",
                           known_shares=known_shares)
             log.info("########## Período: %g años (%s a %s) ##########", years, start_date.date(), end_date.date())
@@ -127,7 +128,7 @@ def main(argv=None) -> None:
     args = parse_args(argv)
     configure_console()
     cfg = load_config(args.config)
-    setup_logging(cfg["output"]["backtest_log"], cfg["output"]["log_dir"])
+    setup_logging(cfg.output.backtest_log, cfg.output.log_dir)
     log_config(cfg, args.config)
 
     reports = run(args, cfg)
@@ -136,9 +137,9 @@ def main(argv=None) -> None:
         for path in reports:
             print(f"  {path}")
     export_report(cfg)
-    conn = open_db(cfg["data"]["db_path"])
+    conn = open_db(cfg.data.db_path)
     try:
-        maybe_prune_runs(conn, int(cfg["data"]["runs_keep_days"]))
+        maybe_prune_runs(conn, cfg.data.runs_keep_days)
     finally:
         conn.close()
 

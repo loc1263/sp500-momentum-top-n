@@ -4,20 +4,21 @@ import pytest
 import run_pipeline
 import top3_actual
 import top3_backtest
+from top3.config import BacktestConfig
 
 
 END = pd.Timestamp("2026-10-20")
 
 
 def test_resolve_periods_from_config_sorted():
-    periods = top3_backtest.resolve_periods({"start_date": "", "periods_years": [10, 3, 5]}, END, None)
+    periods = top3_backtest.resolve_periods(BacktestConfig(periods_years=[10, 3, 5]), END, None)
     assert [y for y, _ in periods] == [3, 5, 10]
     assert periods[0][1] == pd.Timestamp("2023-10-20")
 
 
 def test_resolve_periods_years_flag_and_explicit_start():
-    assert top3_backtest.resolve_periods({"start_date": "", "periods_years": [3, 5]}, END, 7)[0][0] == 7
-    (years, start), = top3_backtest.resolve_periods({"start_date": "2020-10-20", "periods_years": [3]}, END, None)
+    assert top3_backtest.resolve_periods(BacktestConfig(periods_years=[3, 5]), END, 7)[0][0] == 7
+    (years, start), = top3_backtest.resolve_periods(BacktestConfig(start_date="2020-10-20", periods_years=[3]), END, None)
     assert years == 6.0 and start == pd.Timestamp("2020-10-20")
 
 
