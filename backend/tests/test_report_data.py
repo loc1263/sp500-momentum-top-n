@@ -175,3 +175,17 @@ def test_etf_report_survives_a_missing_csv(conn, cfg, tmp_path):
     _add_etf(conn, "2024-08-30", ["VTI"])
     etf = _etf(conn, cfg)
     assert etf["rows"][0]["name"] == "" and etf["risk_free"] is None and etf["changes"] is None
+
+
+def test_build_report_separates_the_skip_month_model(conn, cfg):
+    seed_run(conn, 4, 0)
+    save_run(conn, {"sweep_months": 4, "offset_months": 0, "min_cap_billions": None, "skip_months": 1,
+                    "backtest": {"backtest_years": 5}},
+             "2024-01-01", "2024-09-01",
+             BacktestResult(pd.Series([1000.0, 1500.0], index=pd.to_datetime(["2024-01-01", "2024-09-01"])),
+                            [{"date": "2024-01-01", "returns": {"ZZZ": 0.1}}], 1500.0, 50.0, 60.0))
+    report = build_report(conn, cfg)
+    base = report["backtest"][0]["periods"][0]["terms"][0]["calendars"][0]
+    skip = report["backtest_skip"][0]["periods"][0]["terms"][0]["calendars"][0]
+    assert base["final_capital"] == 1210.0 and skip["final_capital"] == 1500.0
+    assert skip["history"][0]["picks"][0]["ticker"] == "ZZZ"

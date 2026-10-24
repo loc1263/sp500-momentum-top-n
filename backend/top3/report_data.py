@@ -53,10 +53,13 @@ def _term_summary(calendars: list[dict]) -> dict:
             "capital_median": statistics.median(finals), "capital_min": min(finals), "capital_max": max(finals)}
 
 
-def _backtest(conn: sqlite3.Connection, latest: dict, initial_capital: float) -> list[dict]:
-    """Backtest agrupado: universo -> período (años) -> plazo -> calendarios de arranque."""
+def _backtest(conn: sqlite3.Connection, latest: dict, initial_capital: float, skip_months: int = 0) -> list[dict]:
+    """Backtest agrupado: universo -> período (años) -> plazo -> calendarios de arranque, de un modelo
+    (`skip_months` = 0 el de siempre, 1 el skip-month)."""
     grouped: dict[float, dict[float, dict[int, list[dict]]]] = {}
-    for (cap, years, months, offset), row in sorted(latest.items()):
+    for (cap, years, months, offset, skip), row in sorted(latest.items()):
+        if skip != skip_months:
+            continue
         run_id, _, start, end, final, total, cagr = row
         equity, history = _run_detail(conn, run_id, initial_capital)
         calendar = {"offset": offset, "start_date": start, "end_date": end, "final_capital": final,
@@ -149,6 +152,7 @@ def build_report(conn: sqlite3.Connection, cfg: dict) -> dict:
         wanted = {float(y) for y in bt["periods_years"]}
         latest = {k: v for k, v in latest.items() if k[1] in wanted}
     backtest = _backtest(conn, latest, initial_capital)
+    backtest_skip = _backtest(conn, latest, initial_capital, skip_months=1)
     return {
         "generated_at": datetime.now().isoformat(timespec="seconds"),
         "run_date": run_day,
@@ -160,6 +164,7 @@ def build_report(conn: sqlite3.Connection, cfg: dict) -> dict:
         "actual": _actual(conn),
         "etf": _etf(conn, cfg),
         "backtest": backtest,
+        "backtest_skip": backtest_skip,
     }
 
 

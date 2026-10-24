@@ -53,3 +53,13 @@ def test_history_table_adds_final_row_and_caps():
     assert headers == ["Fecha", "#1", "#2", "Cap. aprox. (US$ B)", "Capital (US$)", "Gan/Pérd"]
     assert rows[0] == ["2024-01-01", "A +50.0%", "B +25.0%", "3 / n/d", "1,000.00", "+0.0%"]
     assert rows[1] == ["2024-05-01", "", "", "", "1,100.00", "+10.0%"]        # valor al cierre del último tramo
+
+
+def test_models_table_compares_both_models_term_by_term():
+    skip = [Term(3, [calendar(0, 1300, 40.0)]), Term(6, [calendar(0, 1000, 5.0)])]
+    headers, rows = tables.models_table(terms(), skip)
+    assert len(headers) == len(rows[0]) == 7
+    by_term = {r[0]: r for r in rows}
+    assert by_term["3 meses"][1:4] == ["+25.0%", "+40.0%", "+15.0 pp"] and by_term["3 meses"][-1] == "N-1"
+    assert by_term["6 meses"][-1] == "N-0"
+    assert by_term["12 meses"][2] == "sin datos"            # sin resultado del modelo skip-month

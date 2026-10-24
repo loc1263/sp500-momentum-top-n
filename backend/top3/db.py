@@ -70,12 +70,13 @@ def fetched_today(conn: sqlite3.Connection, key: str) -> bool:
 
 
 def run_key(params: dict) -> tuple | None:
-    """Qué corrida es para el informe: (universo, años del período, plazo, desfase). None si no es de un sweep."""
+    """Qué corrida es para el informe: (universo, años del período, plazo, desfase, meses saltados del modelo).
+    None si no es de un sweep. Las corridas anteriores al modelo skip-month cuentan como 0."""
     if "sweep_months" not in params:
         return None
     years = float(params.get("backtest", {}).get("backtest_years", 5))
     return (float(params.get("min_cap_billions") or 0), years, int(params["sweep_months"]),
-            int(params.get("offset_months", 0)))
+            int(params.get("offset_months", 0)), int(params.get("skip_months", 0)))
 
 
 def prune_runs(conn: sqlite3.Connection, keep_days: int) -> int:

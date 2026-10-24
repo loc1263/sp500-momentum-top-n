@@ -15,6 +15,7 @@ corrida anterior y el próximo rebalanceo) y un **ranking de momentum de los ETF
 | Funcionalidad | Dónde se ve |
 |---|---|
 | **Backtest** Point-in-Time: comparación de plazos y sensibilidad al mes de arranque, por universo (índice completo, large-cap, mega-cap) y por período | Pestañas *Backtest* y *Plazos y sensibilidad* |
+| **Comparación N-0 vs. N-1**: el modelo de siempre frente a una variante *skip-month* que ignora el último mes al rankear, plazo por plazo | Pestaña *N-0 vs N-1* |
 | **Top actual**: las N acciones con mejor retorno hoy, cuatro suplentes, qué entra y qué sale, próximo rebalanceo | Pestaña *Top actual* |
 | **ETFs de Vanguard**: ranking por retorno ajustado por riesgo, con tendencia y caída máxima | Pestaña *ETFs Vanguard* |
 | Reportes por consola y en HTML, con códigos de error estables (`TOP-BKT-003`, ...) | `backend/output/` y [docs/errores.md](docs/errores.md) |

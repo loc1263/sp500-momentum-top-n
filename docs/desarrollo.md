@@ -26,7 +26,7 @@ docs/          # documentación
 | `backend/data/top3.db` | Base SQLite con los datos descargados y los resultados (se crea sola) |
 | `backend/output/` | Reportes HTML (`backtest/` y `actual/`); se crea sola |
 | `backend/log/` | Logs de la última ejecución (nivel DEBUG) |
-| `frontend/` | SPA: pestañas Top actual, Backtest y Plazos/sensibilidad, con selector de universo |
+| `frontend/` | SPA: pestañas Top actual, Backtest, Plazos/sensibilidad y N-0 vs N-1, con selector de universo |
 
 ## Paquete `backend/top3/`
 
@@ -57,6 +57,7 @@ docs/          # documentación
 | `lib/Bunny.svelte` | Detalle decorativo: un conejo que pasea por el pie de la pantalla, se aleja del cursor y saluda al hacer clic (se desactiva con «reducir movimiento» del sistema) |
 | `lib/BacktestView.svelte` | Tarjetas, curva de capital, historial de selecciones y calendarios |
 | `lib/SweepView.svelte` | Comparación de plazos y sensibilidad al arranque |
+| `lib/CompareView.svelte` | Modelo de siempre (N-0) frente al skip-month (N-1), plazo por plazo |
 | `lib/Chart.svelte`, `Range.svelte`, `TickerLink.svelte`, `Glossary.svelte` | Componentes compartidos |
 | `lib/format.js` | Formato de porcentajes, dinero y signos |
 | `test/` | Configuración de los tests y datos de ejemplo (`fixtures.js`) |

@@ -63,6 +63,10 @@ al arranque. Genera 6 HTML y al final lista las rutas. Si se pasa un filtro expl
   de cada plazo. Se repite para cada universo y se acompaña del reporte de sensibilidad al arranque.
 - **`--offsets`:** el resumen por plazo (mediana, mínimo y máximo de CAGR y de capital final) y el detalle de
   cada calendario. Dentro de `--sweep` reutiliza los calendarios ya calculados.
+- **Comparación N-0 vs. N-1 (dentro de `--sweep`):** después de la sensibilidad al arranque, una tabla por universo
+  con el CAGR y el capital final típicos (mediana de los calendarios) del modelo de siempre (N-0) y del skip-month
+  (N-1), la diferencia en puntos porcentuales y cuál gana en cada plazo. Las corridas del N-1 se guardan en SQLite
+  con `skip_months = 1` y se ven en la pestaña *N-0 vs N-1*.
 
 ## Top actual (`top3_actual.py`)
 

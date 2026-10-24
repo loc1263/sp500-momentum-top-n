@@ -88,3 +88,14 @@ def test_run_backtest_without_collector_warns_per_date(caplog):
 
     run_backtest(FewEarly(list(prices.columns)), prices, "2023-09-01", "2024-12-31", 63, "3MS", 1000, 3)
     assert len([r for r in caplog.records if "TOP-BKT-003" in r.getMessage()]) == 2
+
+
+def test_rank_returns_skip_days_ignores_the_most_recent_rows_and_needs_more_history():
+    idx = pd.bdate_range("2024-01-01", periods=30)
+    prices = pd.DataFrame({"UP_LATE": [100.0] * 20 + [100.0 + 10 * i for i in range(1, 11)],   # sube en el último tramo
+                           "UP_EARLY": [100.0 + 5 * i for i in range(20)] + [195.0] * 10},
+                          index=idx)
+    tickers = list(prices.columns)
+    assert list(rank_returns(prices, tickers, idx[-1], 9).index) == ["UP_LATE", "UP_EARLY"]
+    assert list(rank_returns(prices, tickers, idx[-1], 9, skip_days=10).index) == ["UP_EARLY", "UP_LATE"]
+    assert rank_returns(prices, tickers, idx[-1], 25, skip_days=10) is None      # 26 + 10 ruedas > 30

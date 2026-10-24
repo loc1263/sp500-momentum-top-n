@@ -2,6 +2,7 @@
   import ActualView from './lib/ActualView.svelte';
   import BacktestView from './lib/BacktestView.svelte';
   import SweepView from './lib/SweepView.svelte';
+  import CompareView from './lib/CompareView.svelte';
   import EtfView from './lib/EtfView.svelte';
   import Glossary from './lib/Glossary.svelte';
   import Bunny from './lib/Bunny.svelte';
@@ -10,6 +11,7 @@
     { id: 'actual', label: 'Top actual' },
     { id: 'backtest', label: 'Backtest' },
     { id: 'sweep', label: 'Plazos y sensibilidad' },
+    { id: 'compare', label: 'N-0 vs N-1' },
     { id: 'etf', label: 'ETFs Vanguard' },
   ];
 
@@ -67,6 +69,9 @@
   const universe = $derived(
     universeData && period ? { label: universeData.label, ...period } : null,
   );
+  const skipPeriod = $derived(
+    report?.backtest_skip?.find((u) => key(u) === capKey)?.periods.find((p) => p.years === period?.years),
+  );
   const label = $derived(universes.find((u) => key(u) === capKey)?.label ?? '');
 </script>
 
@@ -123,7 +128,7 @@
       </div>
     </nav>
 
-    {#if tab === 'backtest' || tab === 'sweep'}<Glossary />{/if}
+    {#if tab === 'backtest' || tab === 'sweep' || tab === 'compare'}<Glossary />{/if}
 
     {#if tab === 'etf'}
       {#if report.etf}
@@ -141,6 +146,8 @@
       <p class="muted">Sin backtest para «{label}». Ejecute top3_backtest.py --sweep.</p>
     {:else if tab === 'backtest'}
       {#key `${capKey}-${period.years}`}<BacktestView {universe} settings={report.settings} />{/key}
+    {:else if tab === 'compare'}
+      <CompareView {universe} skip={skipPeriod} settings={report.settings} />
     {:else}
       <SweepView {universe} settings={report.settings} />
     {/if}

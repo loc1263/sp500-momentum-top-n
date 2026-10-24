@@ -5,7 +5,7 @@ from pathlib import Path
 import pandas as pd
 
 from . import console, errors as E, html_report, universe as universes
-from .analysis import Context, attach_market_caps, run_calendars, run_terms
+from .analysis import SKIP_MONTHS, Context, attach_market_caps, run_calendars, run_terms
 from .config import DataSettings
 from .logs import log
 from .shares import ensure_shares
@@ -56,6 +56,9 @@ def run_sweep(ctx: Context, universe: Universe | None) -> list[Path]:
     console.print_sweep(ctx, terms, min_cap_b)
     sweep = html_report.sweep_report(ctx, terms, min_cap_b)
     console.print_offsets(ctx, terms, min_cap_b)
+    # El modelo skip-month (N-1) corre siempre junto al de siempre, con los mismos datos, para compararlos
+    skip_terms = run_terms(ctx, universe, skip_months=SKIP_MONTHS)
+    console.print_models(ctx, terms, skip_terms, min_cap_b)
     return [sweep, html_report.offsets_report(ctx, terms, min_cap_b)]
 
 

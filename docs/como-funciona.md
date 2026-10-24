@@ -19,7 +19,13 @@
 5. **Calendarios de arranque.** Un plazo de N meses se puede empezar en N meses distintos. Se prueban todos
    y se informa el calendario base (primer mes), la mediana y el rango, para medir cuánto del resultado
    depende de la fecha de arranque.
-6. **Caché.** Todo se guarda en SQLite. Si se vuelve a correr el mismo día se reutiliza lo descargado;
+6. **Comparación con skip-month (N-1).** En cada sweep se corre además una variante que arma el ranking con los
+   N meses que terminan un mes (21 ruedas) antes de la fecha de rebalanceo, para no premiar rebotes de corto
+   plazo. Las compras y el rendimiento siguen contándose desde la fecha de rebalanceo. Usa los mismos precios,
+   universos, períodos y fechas de arranque que el modelo de siempre (N-0), que es el que se usa en el Top
+   actual. En las corridas de prueba N-0 rindió más que N-1 con el plazo de 4 meses; N-1 solo ganó en plazos
+   cortos. El Top actual no calcula la variante N-1.
+7. **Caché.** Todo se guarda en SQLite. Si se vuelve a correr el mismo día se reutiliza lo descargado;
    `--no-cache` fuerza una descarga nueva, pero no repite dentro de la misma corrida lo que ya bajó (p. ej. las acciones
    en circulación), y `run_pipeline.py` lo aplica solo al primer paso que descarga: los siguientes leen de SQLite lo que
    ese paso acaba de guardar. Las acciones en circulación cambian por trimestre, así que se reutilizan hasta

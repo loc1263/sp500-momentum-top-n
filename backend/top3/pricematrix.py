@@ -40,24 +40,26 @@ class PriceMatrix:
         """Cantidad de ruedas con fecha <= `when` (la última es la fila `rows_until(when) - 1`)."""
         return int(self.index.searchsorted(pd.Timestamp(when), side="right"))
 
-    def returns(self, tickers: list[str], when, lookback_days: int) -> pd.Series:
-        """Retorno de cada ticker en las últimas `lookback_days` ruedas hasta `when`, de mayor a menor.
+    def returns(self, tickers: list[str], when, lookback_days: int, skip_days: int = 0) -> pd.Series:
+        """Retorno de cada ticker en `lookback_days` ruedas que terminan `skip_days` ruedas antes de `when`
+        (skip-month: se ignora el último mes), de mayor a menor.
 
         Solo entran los tickers sin huecos en la ventana de `lookback_days + 1` ruedas. Exige que haya al menos
-        esas ruedas hasta `when` (`rows_until(when) >= lookback_days + 1`)."""
-        end = self.rows_until(when)
+        `lookback_days + skip_days + 1` ruedas hasta `when`."""
+        end = self.rows_until(when) - skip_days
         start = end - (lookback_days + 1)
         if start < 0:
-            raise ValueError(f"{when}: solo hay {end} ruedas, se necesitan {lookback_days + 1}")
+            raise ValueError(f"{when}: solo hay {end + skip_days} ruedas, se necesitan {lookback_days + skip_days + 1}")
         cols = self._cols(tickers)
         complete = self._nan_cum[end, cols] == self._nan_cum[start, cols]
         first, last = self.px[start, cols][complete], self.px[end - 1, cols][complete]
         kept = [t for t, ok in zip(tickers, complete) if ok]
         return (pd.Series(last / first - 1, index=kept)).dropna().sort_values(ascending=False)
 
-    def window_shape(self, tickers: list[str], when, lookback_days: int) -> tuple[tuple[int, int], object]:
+    def window_shape(self, tickers: list[str], when, lookback_days: int,
+                     skip_days: int = 0) -> tuple[tuple[int, int], object]:
         """((ruedas, tickers completos), primera fecha) de la ventana, para el log de depuración."""
-        end = self.rows_until(when)
+        end = max(self.rows_until(when) - skip_days, 0)
         start = max(end - (lookback_days + 1), 0)
         cols = self._cols(tickers)
         complete = int((self._nan_cum[end, cols] == self._nan_cum[start, cols]).sum())

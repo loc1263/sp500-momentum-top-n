@@ -100,6 +100,14 @@ def print_sweep(ctx: Context, terms: list[Term], min_cap_b: float | None) -> Non
         print(f"\n{best}")
 
 
+def print_models(ctx: Context, terms: list[Term], skip_terms: list[Term], min_cap_b: float | None) -> None:
+    print_banner(f"MODELO N-0 vs. SKIP-MONTH N-1 - {ctx.start_date.date()} a {ctx.end_date.date()}"
+                 + (f" - {universe.label(min_cap_b)}" if min_cap_b else ""), 85)
+    print_table(*tables.models_table(terms, skip_terms))
+    print("N-0 = ranking con los últimos N meses hasta hoy; N-1 = los N meses que terminan un mes antes. "
+          "CAGR y capital = mediana de los calendarios de arranque.")
+
+
 def print_offsets(ctx: Context, terms: list[Term], min_cap_b: float | None) -> None:
     print_banner(f"SENSIBILIDAD AL ARRANQUE - {ctx.start_date.date()} a {ctx.end_date.date()}"
                  + (f" - {universe.label(min_cap_b)}" if min_cap_b else ""), 85)

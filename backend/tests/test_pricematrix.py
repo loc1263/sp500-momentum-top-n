@@ -154,3 +154,20 @@ def test_context_builds_the_matrix_once(conn, cfg, settings):
     ctx = Context(conn, cfg, settings, FakeConstituents([]), short_prices(30, 2),
                   pd.Timestamp("2024-01-01"), pd.Timestamp("2024-02-01"))
     assert ctx.matrix is ctx.matrix and ctx.matrix.columns == ["T00", "T01"]
+
+
+def test_skip_days_moves_the_window_back_without_changing_its_length():
+    prices = short_prices(200, 3)
+    matrix = PriceMatrix(prices)
+    when = prices.index[-1]
+    got = matrix.returns(["T00", "T01", "T02"], when, 63, skip_days=21)
+    end = len(prices) - 21
+    expected = prices.iloc[end - 1] / prices.iloc[end - 64] - 1
+    pd.testing.assert_series_equal(got.sort_index(), expected.sort_index(), check_names=False)
+
+
+def test_skip_days_needs_the_extra_history():
+    matrix = PriceMatrix(short_prices(70, 2))
+    matrix.returns(["T00"], matrix.index[-1], 63)                      # 64 ruedas alcanzan sin skip
+    with pytest.raises(ValueError, match="se necesitan 85"):
+        matrix.returns(["T00"], matrix.index[-1], 63, skip_days=21)

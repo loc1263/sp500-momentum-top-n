@@ -4,6 +4,7 @@ import ActualView from './ActualView.svelte';
 import BacktestView from './BacktestView.svelte';
 import Chart from './Chart.svelte';
 import SweepView from './SweepView.svelte';
+import CompareView from './CompareView.svelte';
 import { period, report, settings } from '../test/fixtures.js';
 
 const universe = { label: 'Todo el índice', ...period(5) };
@@ -106,5 +107,30 @@ describe('SweepView', () => {
   it('resume el plazo ganador', () => {
     render(SweepView, { universe, settings });
     expect(screen.getByText('Plazo más consistente: 4 meses.')).toBeInTheDocument();
+  });
+});
+
+describe('CompareView', () => {
+  // N-1 pierde en el plazo de 3 meses (CAGR típico 0,05 < 0,1) y gana en el de 4 (0,5 > 0,3)
+  const skip = { label: 'Todo el índice', ...period(5) };
+  skip.terms = [
+    { ...skip.terms[0], summary: { ...skip.terms[0].summary, cagr_median: 0.05 } },
+    { ...skip.terms[1], summary: { ...skip.terms[1].summary, cagr_median: 0.5 } },
+  ];
+  it('compara los dos modelos plazo por plazo y marca el ganador', () => {
+    render(CompareView, { universe, skip, settings });
+    const rows = screen.getAllByRole('row').slice(2);
+    expect(rows[0]).toHaveTextContent('3 meses');
+    expect(rows[0]).toHaveTextContent('N-0');
+    expect(rows[1]).toHaveTextContent('4 meses');
+    expect(rows[1]).toHaveTextContent('N-1');
+  });
+  it('resume cuántos plazos gana cada modelo', () => {
+    render(CompareView, { universe, skip, settings });
+    expect(screen.getByText(/Empate: cada modelo gana en 1 de 2 plazos/)).toBeInTheDocument();
+  });
+  it('avisa si falta el modelo skip-month', () => {
+    render(CompareView, { universe, skip: undefined, settings });
+    expect(screen.getByText(/Sin resultados del modelo skip-month/)).toBeInTheDocument();
   });
 });

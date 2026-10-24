@@ -64,18 +64,19 @@ def eligible_tickers(constituents_now: list[str], prices: "pd.DataFrame | PriceM
 
 
 def rank_returns(prices: "pd.DataFrame | PriceMatrix", tickers: list[str], when: pd.Timestamp, lookback_days: int,
-                 skipped: Skipped | None = None) -> pd.Series | None:
-    """Retorno de cada ticker en las últimas `lookback_days` ruedas hasta `when`, de mayor a menor.
-    None si no hay ruedas suficientes."""
+                 skipped: Skipped | None = None, skip_days: int = 0) -> pd.Series | None:
+    """Retorno de cada ticker en `lookback_days` ruedas que terminan `skip_days` ruedas antes de `when`, de mayor a
+    menor. None si no hay ruedas suficientes."""
     matrix = PriceMatrix.of(prices)
     rows = matrix.rows_until(when)
+    needed = lookback_days + skip_days + 1
     if log.isEnabledFor(logging.DEBUG):
-        shape, first_day = matrix.window_shape(tickers, when, lookback_days)
+        shape, first_day = matrix.window_shape(tickers, when, lookback_days, skip_days)
         log.debug("%s: ventana shape=%s (desde %s)", when.date(), shape, first_day)
-    if rows < lookback_days + 1:
-        _skip(E.BKT_SHORT_WINDOW, when, skipped, f" (solo {rows} filas de precios, <{lookback_days + 1})")
+    if rows < needed:
+        _skip(E.BKT_SHORT_WINDOW, when, skipped, f" (solo {rows} filas de precios, <{needed})")
         return None
-    return matrix.returns(tickers, when, lookback_days)
+    return matrix.returns(tickers, when, lookback_days, skip_days)
 
 
 def hold_return(prices: "pd.DataFrame | PriceMatrix", tickers: list[str], start: pd.Timestamp,
@@ -87,11 +88,13 @@ def hold_return(prices: "pd.DataFrame | PriceMatrix", tickers: list[str], start:
 
 def run_backtest(constituents: Constituents, prices: "pd.DataFrame | PriceMatrix", start_date, end_date, lookback_days: int,
                  freq: str, initial_capital: float, top_n: int, universe: Universe | None = None,
-                 skipped: Skipped | None = None) -> BacktestResult:
+                 skipped: Skipped | None = None, skip_days: int = 0) -> BacktestResult:
     """Simula la estrategia entre `start_date` y `end_date`, rebalanceando según `freq` (p. ej. "4MS").
 
     `prices` puede ser un `PriceMatrix` ya armado: quien corre muchas simulaciones sobre los mismos precios (los
     calendarios y plazos de un período) lo arma una vez y lo reutiliza.
+    Con `skip_days` el ranking ignora las últimas `skip_days` ruedas (modelo skip-month); las compras y el
+    rendimiento siguen contándose desde la fecha de rebalanceo.
     Lanza RuntimeError si no hubo ningún rebalanceo (fechas fuera del histórico, universo demasiado chico...).
     """
     prices = PriceMatrix.of(prices)
@@ -114,7 +117,7 @@ def run_backtest(constituents: Constituents, prices: "pd.DataFrame | PriceMatrix
         if len(candidates) < MIN_TICKERS:
             _skip(E.BKT_FEW_TICKERS, when, skipped)
             continue
-        returns = rank_returns(prices, candidates, when, lookback_days, skipped)
+        returns = rank_returns(prices, candidates, when, lookback_days, skipped, skip_days)
         if returns is None:
             continue
 

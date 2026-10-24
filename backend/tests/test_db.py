@@ -77,7 +77,8 @@ def test_prune_runs_dedupes_by_report_key_not_by_exact_params(conn):
 
 def test_report_and_prune_use_the_same_run_key():
     from top3.db import run_key
-    assert run_key(json_loads(sweep_params())) == (0.0, 5.0, 4, 0)
+    assert run_key(json_loads(sweep_params())) == (0.0, 5.0, 4, 0, 0)
+    assert run_key(json_loads(sweep_params(skip_months=1))) == (0.0, 5.0, 4, 0, 1)
     assert run_key({"months": 4}) is None
 
 

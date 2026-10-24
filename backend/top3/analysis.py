@@ -17,6 +17,9 @@ from .pricematrix import PriceMatrix
 from .universe import Universe, label
 
 
+SKIP_MONTHS = 1  # el modelo skip-month (N-1) ignora el último mes al armar el ranking
+
+
 @dataclass
 class Context:
     """Todo lo que comparten las corridas de un período: datos, fechas y configuración."""
@@ -54,6 +57,9 @@ class Context:
 
     def lookback_days(self, months: int) -> int:
         return months * int(self.cfg["backtest"]["trading_days_per_month"])
+
+    def skip_days(self, skip_months: int) -> int:
+        return skip_months * int(self.cfg["backtest"]["trading_days_per_month"])
 
 
 @dataclass(kw_only=True)
@@ -112,26 +118,27 @@ def _where(ctx: Context, universe: Universe | None) -> str:
 
 
 def run_calendars(ctx: Context, months: int, universe: Universe | None = None,
-                  skipped: Skipped | None = None) -> Term:
+                  skipped: Skipped | None = None, skip_months: int = 0) -> Term:
     """Plazo de N meses con sus N calendarios posibles (arranque desfasado 0..N-1 meses).
     Guarda cada corrida en SQLite; los calendarios que fallan se omiten. Los rebalanceos omitidos se avisan juntos
-    al final (o, si el que llama pasa `skipped`, cuando él lo decida)."""
+    al final (o, si el que llama pasa `skipped`, cuando él lo decida). Con `skip_months` es el modelo skip-month."""
     min_cap_b = universe.min_cap_billions if universe else None
     own = skipped is None
     skipped = {} if own else skipped
     calendars = []
     for offset in range(months):
         start = ctx.start_date + pd.DateOffset(months=offset)
-        log.info("=== Plazo %d meses, desfase %d/%d (arranque desde %s) ===",
-                 months, offset, months - 1, start.date())
+        log.info("=== Plazo %d-%d meses, desfase %d/%d (arranque desde %s) ===",
+                 months, skip_months, offset, months - 1, start.date())
         try:
             result = run_backtest(ctx.constituents, ctx.matrix, start, ctx.end_date, ctx.lookback_days(months),
-                                  f"{months}MS", ctx.initial_capital, ctx.top_n, universe, skipped)
+                                  f"{months}MS", ctx.initial_capital, ctx.top_n, universe, skipped,
+                                  ctx.skip_days(skip_months))
         except Exception as e:
             log.warning(E.BKT_TERM_FAILED.msg("Plazo %d meses, desfase %d sin resultado: %s"), months, offset, e)
             continue
         save_run(ctx.conn, {**ctx.cfg, "sweep_months": months, "offset_months": offset,
-                            "min_cap_billions": min_cap_b},
+                            "min_cap_billions": min_cap_b, "skip_months": skip_months},
                  start.strftime("%Y-%m-%d"), ctx.end_date.strftime("%Y-%m-%d"), result)
         calendars.append(Calendar(**vars(result), offset=offset))
     if own:
@@ -139,10 +146,11 @@ def run_calendars(ctx: Context, months: int, universe: Universe | None = None,
     return Term(months, calendars)
 
 
-def run_terms(ctx: Context, universe: Universe | None = None, months: list[int] | None = None) -> list[Term]:
+def run_terms(ctx: Context, universe: Universe | None = None, months: list[int] | None = None,
+              skip_months: int = 0) -> list[Term]:
     """Corre cada plazo (por defecto los de [simulation] months) con todos sus calendarios."""
     skipped: Skipped = {}  # todos los plazos y desfases juntos: un solo aviso por motivo
-    terms = [run_calendars(ctx, m, universe, skipped) for m in (months or ctx.terms)]
+    terms = [run_calendars(ctx, m, universe, skipped, skip_months) for m in (months or ctx.terms)]
     report_skipped(skipped, _where(ctx, universe))
     return terms
 

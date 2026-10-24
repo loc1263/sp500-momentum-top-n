@@ -93,3 +93,23 @@ def offsets_best(terms: list[Term]) -> str | None:
     median, low, high = t.cagr_stats()
     return (f"Mejor plazo por CAGR mediano: {t.months} meses (mediana {pct(median)}, "
             f"rango {pct(low)} a {pct(high)}, {len(t.calendars)} calendarios)")
+
+
+def models_table(terms: list[Term], skip_terms: list[Term]) -> Table:
+    """Modelo de siempre (N-0) frente al skip-month (N-1), plazo por plazo: CAGR mediano y capital mediano."""
+    headers = ["Plazo", "CAGR N-0", "CAGR N-1", "Dif. CAGR", "Capital N-0", "Capital N-1", "Gana"]
+    skip_by_months = {t.months: t for t in skip_terms if t.calendars}
+    rows = []
+    for t in _by_median_cagr([t for t in terms if t.calendars]):
+        other = skip_by_months.get(t.months)
+        median, _, _ = t.cagr_stats()
+        capital, _, _ = t.capital_stats()
+        if other is None:
+            rows.append([f"{t.months} meses", pct(median), "sin datos", "-", f"{capital:,.0f}", "-", "-"])
+            continue
+        other_median, _, _ = other.cagr_stats()
+        other_capital, _, _ = other.capital_stats()
+        winner = "N-1" if other_median > median else "N-0" if median > other_median else "empate"
+        rows.append([f"{t.months} meses", pct(median), pct(other_median), f"{other_median - median:+.1f} pp",
+                     f"{capital:,.0f}", f"{other_capital:,.0f}", winner])
+    return headers, rows
