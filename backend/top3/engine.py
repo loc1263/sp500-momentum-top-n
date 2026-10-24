@@ -1,7 +1,6 @@
 """Motor del backtest: cada N meses se compran, con ponderación igual, las N acciones que más subieron."""
-from dataclasses import dataclass
-
 import logging
+from dataclasses import dataclass
 
 import pandas as pd
 
