@@ -34,10 +34,14 @@ def latest_date(conn: sqlite3.Connection) -> str | None:
     return conn.execute("SELECT MAX(date) FROM prices").fetchone()[0]
 
 
-def close_on_or_before(conn: sqlite3.Connection, ticker: str, day: str) -> float | None:
-    row = conn.execute("SELECT close FROM prices WHERE ticker = ? AND date <= ? ORDER BY date DESC LIMIT 1",
-                       (ticker, day)).fetchone()
-    return row[0] if row else None
+def closes_on_or_before(conn: sqlite3.Connection, tickers: list[str], day: str) -> dict[str, float]:
+    """{ticker: último cierre en `day` o antes} en una sola consulta; los tickers sin precios no figuran."""
+    if not tickers:
+        return {}
+    marks = ", ".join("?" * len(tickers))
+    return dict(conn.execute(
+        f"SELECT p.ticker, p.close FROM prices p WHERE p.ticker IN ({marks}) AND p.date = "
+        "(SELECT MAX(date) FROM prices WHERE ticker = p.ticker AND date <= ?)", (*tickers, day)))
 
 
 def stored_since(conn: sqlite3.Connection, since: str) -> pd.DataFrame:

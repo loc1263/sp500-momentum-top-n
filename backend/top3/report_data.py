@@ -78,34 +78,38 @@ def _term_summary(calendars: list[dict]) -> dict:
             "halves": _halves(calendars)}
 
 
+def _calendar(conn: sqlite3.Connection, offset: int, row, initial_capital: float) -> dict:
+    """Un calendario de arranque: resumen de la corrida, curva de capital e historial de selecciones."""
+    equity, history = _run_detail(conn, row.id, initial_capital)
+    return {"offset": offset, "start_date": row.start_date, "end_date": row.end_date,
+            "final_capital": row.final_capital, "total_return": row.total_return / 100, "cagr": row.cagr / 100,
+            "rebalances": len(history), "first_rebalance": history[0]["date"] if history else None,
+            "equity": equity, "history": history}
+
+
+def _universe(cap: float, by_years: dict[float, dict[int, list[dict]]]) -> dict:
+    """Un universo: sus períodos (años) con los plazos y calendarios de cada uno."""
+    periods = []
+    for years, by_term in sorted(by_years.items()):
+        terms = []
+        for months, calendars in sorted(by_term.items()):
+            calendars.sort(key=lambda c: c["offset"])
+            terms.append({"months": months, "calendars": calendars, "summary": _term_summary(calendars)})
+        base = terms[0]["calendars"][0]  # calendario base (desfase 0): define el período
+        periods.append({"years": years, "start_date": base["start_date"], "end_date": base["end_date"],
+                        "terms": terms})
+    return {"min_cap_billions": cap or None, "label": label(cap), "periods": periods}
+
+
 def _backtest(conn: sqlite3.Connection, latest: dict, initial_capital: float, skip_months: int = 0) -> list[dict]:
     """Backtest agrupado: universo -> período (años) -> plazo -> calendarios de arranque, de un modelo
     (`skip_months` = 0 el de siempre, 1 el skip-month)."""
     grouped: dict[float, dict[float, dict[int, list[dict]]]] = {}
     for (cap, years, months, offset, skip), row in sorted(latest.items()):
-        if skip != skip_months:
-            continue
-        run_id, _, start, end, final, total, cagr = row  # RunRow
-        equity, history = _run_detail(conn, run_id, initial_capital)
-        calendar = {"offset": offset, "start_date": start, "end_date": end, "final_capital": final,
-                    "total_return": total / 100, "cagr": cagr / 100, "rebalances": len(history),
-                    "first_rebalance": history[0]["date"] if history else None,
-                    "equity": equity, "history": history}
-        grouped.setdefault(cap, {}).setdefault(years, {}).setdefault(months, []).append(calendar)
-
-    out = []
-    for cap, by_years in sorted(grouped.items()):
-        periods = []
-        for years, by_term in sorted(by_years.items()):
-            terms = []
-            for months, calendars in sorted(by_term.items()):
-                calendars.sort(key=lambda c: c["offset"])
-                terms.append({"months": months, "calendars": calendars, "summary": _term_summary(calendars)})
-            base = terms[0]["calendars"][0]  # calendario base (desfase 0): define el período
-            periods.append({"years": years, "start_date": base["start_date"], "end_date": base["end_date"],
-                            "terms": terms})
-        out.append({"min_cap_billions": cap or None, "label": label(cap), "periods": periods})
-    return out
+        if skip == skip_months:
+            grouped.setdefault(cap, {}).setdefault(years, {}).setdefault(months, []).append(
+                _calendar(conn, offset, row, initial_capital))
+    return [_universe(cap, by_years) for cap, by_years in sorted(grouped.items())]
 
 
 def _tracking(conn: sqlite3.Connection, cap: float, months: int) -> list[dict]:
@@ -130,11 +134,9 @@ def _tracking(conn: sqlite3.Connection, cap: float, months: int) -> list[dict]:
         end = min(term_end, last_day)
         if end <= bought:
             continue
-        returns = []
-        for ticker, price in picks:
-            now = prices_store.close_on_or_before(conn, ticker, end.isoformat())
-            if now is not None and price:
-                returns.append({"ticker": ticker, "price": price, "now": now, "return": now / price - 1})
+        closes = prices_store.closes_on_or_before(conn, [t for t, _ in picks], end.isoformat())
+        returns = [{"ticker": ticker, "price": price, "now": closes[ticker], "return": closes[ticker] / price - 1}
+                   for ticker, price in picks if ticker in closes and price]
         if returns:
             out.append({"as_of": as_of, "until": end.isoformat(), "days": (end - bought).days,
                         "closed": term_end <= last_day, "picks": returns,

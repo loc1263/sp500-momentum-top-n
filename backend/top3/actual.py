@@ -1,5 +1,6 @@
 """Top N actual del S&P 500: las acciones que más subieron en los últimos N meses (el criterio del backtest, hoy)."""
 import sqlite3
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -90,54 +91,82 @@ def compute_top(prices: pd.DataFrame, months: int, top_n: int, trading_days_per_
     return returns.head(top_n + extra), window
 
 
-def run_actual(cfg: Config, months: int, top_n: int, min_cap_b: float | None, use_cache: bool) -> Path:
-    """Calcula el Top actual, lo guarda en SQLite, lo imprime y escribe el reporte HTML."""
-    log.info("Plazo: %d meses | Top %d | Universo: %s", months, top_n, universes.label(min_cap_b))
+@dataclass
+class ActualResult:
+    """El Top actual calculado: los elegidos, los suplentes y la ventana de precios usada."""
+
+    months: int
+    top_n: int
+    min_cap_b: float | None
+    as_of: date
+    window: pd.DataFrame
+    picks: list[store.Pick]
+    alternates: list[store.Pick]
+
+
+def compute_actual(conn: sqlite3.Connection, cfg: Config, months: int, top_n: int, min_cap_b: float | None,
+                   use_cache: bool) -> ActualResult:
+    """Baja (o toma de SQLite) los datos y calcula el Top actual y sus suplentes. No guarda ni imprime nada."""
     settings = cfg.data
     today = date.today()
     start = (today - timedelta(days=months * 31 + 45)).isoformat()  # margen para cubrir las ruedas necesarias
     end = (today + timedelta(days=1)).isoformat()
+    tickers = get_current_tickers(conn, cfg.tickers.aliases, use_cache, settings)
+    prices = get_prices(conn, tickers, start, end, use_cache, settings)
 
-    conn = open_db(cfg.data.db_path)
-    try:
-        tickers = get_current_tickers(conn, cfg.tickers.aliases, use_cache, settings)
-        prices = get_prices(conn, tickers, start, end, use_cache, settings)
+    known, universe = None, None
+    if min_cap_b:
+        known = ensure_shares(conn, list(prices.columns), use_cache, settings)
+        universe = Universe(known, min_cap_b)
 
-        known, universe = None, None
-        if min_cap_b:
-            known = ensure_shares(conn, list(prices.columns), use_cache, settings)
-            universe = Universe(known, min_cap_b)
+    ranked, window = compute_top(prices, months, top_n, cfg.backtest.trading_days_per_month, universe,
+                                 cfg.backtest.alternates)
+    shares = ensure_shares(conn, list(ranked.index), use_cache, settings, known=known)
+    picks = []
+    for rank, (ticker, ret) in enumerate(ranked.items(), 1):
+        price = float(window[ticker].iloc[-1])
+        cap = price * shares[ticker] if ticker in shares else None
+        picks.append(store.Pick(rank, ticker, float(ret), price, cap))
+    return ActualResult(months, top_n, min_cap_b, window.index[-1].date(), window, picks[:top_n], picks[top_n:])
 
-        extra = cfg.backtest.alternates
-        ranked, window = compute_top(prices, months, top_n, cfg.backtest.trading_days_per_month, universe,
-                                     extra)
-        shares = ensure_shares(conn, list(ranked.index), use_cache, settings, known=known)
 
-        as_of = window.index[-1].date()
-        run_at = datetime.now().isoformat(timespec="seconds")
-        rows = []
-        for rank, (ticker, ret) in enumerate(ranked.items(), 1):
-            price = float(window[ticker].iloc[-1])
-            cap = price * shares[ticker] if ticker in shares else None
-            rows.append(store.Pick(rank, ticker, float(ret), price, cap))
-        rows, alt_rows = rows[:top_n], rows[top_n:]
-        previous_as_of, previous = store.previous_picks(conn, as_of.isoformat(), months, min_cap_b)
-        store.replace_picks(conn, run_at, as_of.isoformat(), months, min_cap_b, rows, alt_rows)
-        log.info("Resultado guardado en SQLite (tabla actual_picks)")
-        notes = rotation.describe(previous_as_of, rotation.diff_picks(previous, [p.ticker for p in rows]),
-                                  store.anchor_date(conn, months, min_cap_b), months, today)
-    finally:
-        conn.close()
+def save_actual(conn: sqlite3.Connection, result: ActualResult, today: date | None = None) -> list[str]:
+    """Guarda el Top actual (repetir la corrida con los mismos datos reemplaza la anterior) y devuelve las notas de
+    rotación: qué entró y salió contra la corrida anterior y cuándo toca rebalancear."""
+    as_of, months, min_cap_b = result.as_of.isoformat(), result.months, result.min_cap_b
+    previous_as_of, previous = store.previous_picks(conn, as_of, months, min_cap_b)
+    store.replace_picks(conn, datetime.now().isoformat(timespec="seconds"), as_of, months, min_cap_b,
+                        result.picks, result.alternates)
+    log.info("Resultado guardado en SQLite (tabla actual_picks)")
+    return rotation.describe(previous_as_of, rotation.diff_picks(previous, [p.ticker for p in result.picks]),
+                             store.anchor_date(conn, months, min_cap_b), months, today or date.today())
 
-    weight = 100 / len(rows)
+
+def present_actual(cfg: Config, result: ActualResult, notes: list[str]) -> Path:
+    """Imprime el Top actual por consola y escribe el reporte HTML."""
+    months = result.months
+    weight = 100 / len(result.picks)
     headers = ["#", "Ticker", f"Retorno {months} meses", "Cap. aprox. (US$ B)", "Precio (US$)", "Peso"]
 
     def fmt(p, w):
         return [str(p.rank), p.ticker, f"{p.return_lookback * 100:+.1f}%",
                 f"{p.market_cap / 1e9:,.0f}" if p.market_cap else "n/d", f"{p.price:,.2f}", w]
 
-    table = [fmt(r, f"{weight:.1f}%") for r in rows]
-    alternates = [fmt(r, "-") for r in alt_rows]
-    console.print_actual(top_n, months, min_cap_b, as_of, window, headers, table, weight, notes, alternates)
-    return html_report.actual_report(cfg, top_n, months, min_cap_b, as_of, window, headers, table, weight, notes,
-                                     alternates)
+    table = [fmt(p, f"{weight:.1f}%") for p in result.picks]
+    alternates = [fmt(p, "-") for p in result.alternates]
+    console.print_actual(result.top_n, months, result.min_cap_b, result.as_of, result.window, headers, table, weight,
+                         notes, alternates)
+    return html_report.actual_report(cfg, result.top_n, months, result.min_cap_b, result.as_of, result.window,
+                                     headers, table, weight, notes, alternates)
+
+
+def run_actual(cfg: Config, months: int, top_n: int, min_cap_b: float | None, use_cache: bool) -> Path:
+    """Calcula el Top actual, lo guarda en SQLite, lo imprime y escribe el reporte HTML."""
+    log.info("Plazo: %d meses | Top %d | Universo: %s", months, top_n, universes.label(min_cap_b))
+    conn = open_db(cfg.data.db_path)
+    try:
+        result = compute_actual(conn, cfg, months, top_n, min_cap_b, use_cache)
+        notes = save_actual(conn, result)
+    finally:
+        conn.close()
+    return present_actual(cfg, result, notes)

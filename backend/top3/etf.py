@@ -145,22 +145,9 @@ def refresh_list(cfg: Config) -> None:
                  ", ".join(gone), etf_cfg.csv)
 
 
-def run_etf(cfg: Config, as_of: str | None = None, top_n: int | None = None, csv_path: str | None = None,
-            update_list: bool = True) -> Path:
-    """Descarga los precios, calcula el ranking, lo guarda en SQLite, lo imprime y escribe el reporte HTML.
-
-    Con la lista del config (sin `csv_path`) y `[etf] update_list`, antes agrega los ETFs nuevos de Vanguard."""
-    etf_cfg = cfg.etf
-    if update_list and csv_path is None and etf_cfg.update_list:
-        refresh_list(cfg)
-    horizons = sorted(etf_cfg.horizons_months)
-    top_n = top_n or etf_cfg.top_n
-    tdpm = cfg.backtest.trading_days_per_month
-    universe = load_universe(csv_path or etf_cfg.csv)
-    end_day = datetime.fromisoformat(as_of).date() if as_of else date.today()
+def download_etf_prices(cfg: Config, universe: pd.DataFrame, horizons: list[int], end_day: date) -> pd.DataFrame:
+    """Precios de los ETFs de la lista hasta `end_day`; avisa de los que Yahoo no devolvió."""
     start = (end_day - timedelta(days=max(horizons) * 31 + 60)).isoformat()  # margen para las ruedas necesarias
-    log.info("ETFs de Vanguard: %d en la lista | plazos %s meses | datos hasta %s", len(universe), horizons, end_day)
-
     prices = download_recent(list(universe["ticker"]), start, (end_day + timedelta(days=1)).isoformat(),
                              cfg.data.batch_size)
     prices = prices[prices.index <= pd.Timestamp(end_day)].dropna(axis=1, how="all")
@@ -168,10 +155,13 @@ def run_etf(cfg: Config, as_of: str | None = None, top_n: int | None = None, csv
     if without_prices:
         log.warning(E.ETF_NO_PRICES.msg("%d ETFs de la lista sin precios en Yahoo: %s"), len(without_prices),
                     ", ".join(without_prices))
+    return prices
 
-    risk_free = etf_cfg.risk_free_ticker.upper() or None
-    min_vol = etf_cfg.min_vol
-    scores, excluded = score_etfs(prices, horizons, tdpm, risk_free, min_vol)
+
+def rank_etfs(cfg: Config, prices: pd.DataFrame, horizons: list[int]) -> tuple[pd.DataFrame, dict]:
+    """Ranking de los ETFs con los avisos de lo que quedó fuera; sin ninguno rankeable corta con un error."""
+    risk_free = cfg.etf.risk_free_ticker.upper() or None
+    scores, excluded = score_etfs(prices, horizons, cfg.backtest.trading_days_per_month, risk_free, cfg.etf.min_vol)
     if risk_free and not scores.empty and scores.attrs["risk_free"] is None:
         log.warning(E.ETF_NO_RISK_FREE.msg("La referencia libre de riesgo %s no está disponible: el score se calcula "
                                            "sin restarla"), risk_free)
@@ -180,19 +170,24 @@ def run_etf(cfg: Config, as_of: str | None = None, top_n: int | None = None, csv
                     ", ".join(sorted(excluded)))
     if scores.empty:
         raise SystemExit(E.ETF_EMPTY.msg("Ningún ETF tiene historia suficiente para el plazo más largo."))
-    data_day = prices.index[-1].date().isoformat()
+    return scores, excluded
 
-    if as_of:  # consulta puntual al pasado: no se guarda ni se compara, para no mezclarla con el historial real
-        note = "Consulta a una fecha pedida: no se guarda ni se compara con otras corridas."
-    else:
-        conn = open_db(cfg.data.db_path)
-        try:
-            prev_as_of, prev_top = store.previous_top(conn, data_day, top_n)
-            save_scores(conn, data_day, scores, horizons)
-        finally:
-            conn.close()
-        note = describe_changes(prev_as_of, rotation.diff_picks(prev_top, list(scores.index[:top_n])), top_n)
 
+def save_ranking(cfg: Config, data_day: str, scores: pd.DataFrame, horizons: list[int], top_n: int) -> str:
+    """Guarda el ranking del día y devuelve la nota con los cambios del top contra el ranking anterior."""
+    conn = open_db(cfg.data.db_path)
+    try:
+        prev_as_of, prev_top = store.previous_top(conn, data_day, top_n)
+        save_scores(conn, data_day, scores, horizons)
+    finally:
+        conn.close()
+    return describe_changes(prev_as_of, rotation.diff_picks(prev_top, list(scores.index[:top_n])), top_n)
+
+
+def present_etf(cfg: Config, universe: pd.DataFrame, scores: pd.DataFrame, excluded: dict, horizons: list[int],
+                top_n: int, data_day: str, note: str, historical: bool) -> Path:
+    """Imprime el ranking por consola y escribe el reporte HTML."""
+    min_vol = cfg.etf.min_vol
     headers, rows = table_rows(scores, universe, horizons)
     excluded_note = ("Fuera del ranking: " + ", ".join(f"{t} ({why})" for t, why in sorted(excluded.items()))
                      if excluded else "")
@@ -201,5 +196,28 @@ def run_etf(cfg: Config, as_of: str | None = None, top_n: int | None = None, csv
                  if cash_like else "")
     notes = [note, excluded_note, cash_note]
     ref = scores.attrs["risk_free"]
-    console.print_etf(data_day, horizons, top_n, len(scores), headers, rows, notes, bool(as_of), ref)
-    return html_report.etf_report(cfg, data_day, horizons, top_n, headers, rows, notes, bool(as_of), ref)
+    console.print_etf(data_day, horizons, top_n, len(scores), headers, rows, notes, historical, ref)
+    return html_report.etf_report(cfg, data_day, horizons, top_n, headers, rows, notes, historical, ref)
+
+
+def run_etf(cfg: Config, as_of: str | None = None, top_n: int | None = None, csv_path: str | None = None,
+            update_list: bool = True) -> Path:
+    """Descarga los precios, calcula el ranking, lo guarda en SQLite, lo imprime y escribe el reporte HTML.
+
+    Con la lista del config (sin `csv_path`) y `[etf] update_list`, antes agrega los ETFs nuevos de Vanguard."""
+    if update_list and csv_path is None and cfg.etf.update_list:
+        refresh_list(cfg)
+    horizons = sorted(cfg.etf.horizons_months)
+    top_n = top_n or cfg.etf.top_n
+    universe = load_universe(csv_path or cfg.etf.csv)
+    end_day = datetime.fromisoformat(as_of).date() if as_of else date.today()
+    log.info("ETFs de Vanguard: %d en la lista | plazos %s meses | datos hasta %s", len(universe), horizons, end_day)
+
+    prices = download_etf_prices(cfg, universe, horizons, end_day)
+    scores, excluded = rank_etfs(cfg, prices, horizons)
+    data_day = prices.index[-1].date().isoformat()
+    if as_of:  # consulta puntual al pasado: no se guarda ni se compara, para no mezclarla con el historial real
+        note = "Consulta a una fecha pedida: no se guarda ni se compara con otras corridas."
+    else:
+        note = save_ranking(cfg, data_day, scores, horizons, top_n)
+    return present_etf(cfg, universe, scores, excluded, horizons, top_n, data_day, note, bool(as_of))

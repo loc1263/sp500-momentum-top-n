@@ -245,3 +245,10 @@ def test_a_known_gone_ticker_is_asked_again_after_the_ttl(conn, fetch, settings)
     assert any("OLD" in tickers for tickers, _, _ in fetch.calls)
     assert ("OLD", "2024-03-05") in stored(conn)
     assert store.known_no_data(conn, 30) == set()    # y como ahora tiene datos, se olvida
+
+
+def test_closes_on_or_before_takes_the_last_close_of_each_ticker_in_one_query(conn):
+    store.save(conn, long([("A", "2024-01-02", 1.0), ("A", "2024-01-05", 2.0), ("A", "2024-01-09", 3.0),
+                           ("B", "2024-01-08", 7.0)]))
+    assert store.closes_on_or_before(conn, ["A", "B", "NOPE"], "2024-01-08") == {"A": 2.0, "B": 7.0}
+    assert store.closes_on_or_before(conn, [], "2024-01-08") == {}

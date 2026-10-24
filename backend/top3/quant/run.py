@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 
 from .. import errors as E
-from ..config import Config
+from ..config import Config, QuantConfig
 from ..constituents import Constituents, ensure_constituents
 from ..db import open_db
 from ..logs import log
@@ -56,13 +56,10 @@ def run_quant(cfg: Config, use_cache: bool = True) -> dict:
     return payload
 
 
-def compute(prices: pd.DataFrame, tickers: list[str], data: dict[str, dict], ohlcv: dict[str, pd.DataFrame],
-            cfg: Config) -> dict:
-    q = cfg.quant
-    top_n = q.top_n
-    prices = prices.reindex(columns=tickers)
-    as_of = prices.index[-1]
-
+def _scores(prices: pd.DataFrame, tickers: list[str], data: dict[str, dict], ohlcv: dict[str, pd.DataFrame],
+            q: QuantConfig, top_n: int) -> tuple[pd.DataFrame, pd.Series, pd.DataFrame, pd.DataFrame]:
+    """Tabla con los tres scores y el final, ordenada de mayor a menor, más los scores sueltos (momentum, salud y
+    técnico) para medir la cobertura. Corta con un error si hay menos acciones con los tres scores que `top_n`."""
     returns = MO.momentum_returns(prices)
     momentum = MO.momentum_score(returns)
     frame = FU.indicators(data)
@@ -76,18 +73,14 @@ def compute(prices: pd.DataFrame, tickers: list[str], data: dict[str, dict], ohl
     weights = np.array(q.weights)
     ranked["score"] = ranked[scores].to_numpy() @ weights / weights.sum()
     ranked = ranked.sort_values(["score", "momentum"], ascending=False)
-    log.info("Acciones: %d en el índice, %d con momentum, %d con datos financieros, %d con datos técnicos, %d en el ranking "
-             "final", len(tickers), int(momentum.notna().sum()), int(health["health"].notna().sum()),
+    log.info("Acciones: %d en el índice, %d con momentum, %d con datos financieros, %d con datos técnicos, %d en el "
+             "ranking final", len(tickers), int(momentum.notna().sum()), int(health["health"].notna().sum()),
              int(technical["technical"].notna().sum()), len(ranked))
+    return ranked, momentum, health, technical
 
-    top = list(ranked.index[:top_n])
-    prior = q.risk_free + q.equity_premium
-    mu, sigma = MK.inputs(prices[top], q.mu_shrink, prior)
-    optimal = MK.frontier(mu, sigma, q.vol_target, q.w_max, q.risk_free,
-                          ranked.loc[top, "sector"], q.sector_max)
-    # los pesos de la tabla son los de la primera cartera disponible: máximo retorno o, si no se alcanza el riesgo, Sharpe
-    weight = {w["ticker"]: w["weight"] for w in optimal["portfolios"][0]["weights"]}
 
+def _ranking_rows(ranked: pd.DataFrame, top_n: int, weight: dict[str, float]) -> list[dict]:
+    """Una fila por acción del ranking, con sus scores, indicadores y el peso de Markowitz (solo las del top)."""
     rows = []
     for rank, (ticker, r) in enumerate(ranked.iterrows(), 1):
         rows.append({
@@ -102,22 +95,42 @@ def compute(prices: pd.DataFrame, tickers: list[str], data: dict[str, dict], ohl
             "fcf_yield": r["fcf_yield"], "cash_conversion": r["cash_conversion"], "ocf_to_debt": r["ocf_to_debt"],
             "fcf_positive_years": r["fcf_positive_years"],
             "weight": weight.get(ticker, 0.0) if rank <= top_n else 0.0})
-    vol = pd.Series(np.sqrt(np.diag(sigma)), index=sigma.index)
+    return rows
+
+
+def _coverage(tickers: list[str], momentum: pd.Series, health: pd.DataFrame, technical: pd.DataFrame,
+              ranked: pd.DataFrame) -> dict:
+    """Cuántas acciones tienen cada score y cuáles quedaron fuera por falta de datos."""
     excluded = {"sin_momentum": sorted(momentum.index.difference(momentum.dropna().index).tolist()
                                        + [t for t in tickers if t not in momentum.index]),
                 "sin_datos_financieros": sorted(t for t in tickers if t not in health["health"].dropna().index),
                 "sin_datos_tecnicos": sorted(t for t in tickers if t not in technical["technical"].dropna().index)}
+    return {"universe": len(tickers), "momentum": int(momentum.notna().sum()),
+            "health": int(health["health"].notna().sum()), "technical": int(technical["technical"].notna().sum()),
+            "ranked": len(ranked), "excluded": excluded}
+
+
+def compute(prices: pd.DataFrame, tickers: list[str], data: dict[str, dict], ohlcv: dict[str, pd.DataFrame],
+            cfg: Config) -> dict:
+    """Ranking por score y Markowitz sobre los mejores, como el dict (apto para JSON) que se guarda y se exporta."""
+    q = cfg.quant
+    prices = prices.reindex(columns=tickers)
+    ranked, momentum, health, technical = _scores(prices, tickers, data, ohlcv, q, q.top_n)
+
+    top = list(ranked.index[:q.top_n])
+    prior = q.risk_free + q.equity_premium
+    mu, sigma = MK.inputs(prices[top], q.mu_shrink, prior)
+    optimal = MK.frontier(mu, sigma, q.vol_target, q.w_max, q.risk_free, ranked.loc[top, "sector"], q.sector_max)
+    # los pesos de la tabla son los de la primera cartera disponible: máximo retorno o, si no se alcanza el riesgo, Sharpe
+    weight = {w["ticker"]: w["weight"] for w in optimal["portfolios"][0]["weights"]}
+    vol = pd.Series(np.sqrt(np.diag(sigma)), index=sigma.index)
     return _clean({
-        "as_of": as_of.date().isoformat(), "generated_at": datetime.now().isoformat(timespec="seconds"),
-        "settings": {"top_n": top_n, "vol_target": q.vol_target, "w_max": q.w_max,
-                     "sector_max": q.sector_max,
+        "as_of": prices.index[-1].date().isoformat(), "generated_at": datetime.now().isoformat(timespec="seconds"),
+        "settings": {"top_n": q.top_n, "vol_target": q.vol_target, "w_max": q.w_max, "sector_max": q.sector_max,
                      "mu_shrink": q.mu_shrink, "risk_free": q.risk_free, "prior": prior,
-                     "weights": list(q.weights),
-                     "health_weights": dict(zip(FU.GROUPS, q.health_weights))},
-        "coverage": {"universe": len(tickers), "momentum": int(momentum.notna().sum()),
-                     "health": int(health["health"].notna().sum()), "technical": int(technical["technical"].notna().sum()),
-                     "ranked": len(ranked), "excluded": excluded},
-        "ranking": rows,
+                     "weights": list(q.weights), "health_weights": dict(zip(FU.GROUPS, q.health_weights))},
+        "coverage": _coverage(tickers, momentum, health, technical, ranked),
+        "ranking": _ranking_rows(ranked, q.top_n, weight),
         "markowitz": {"tickers": [{"ticker": t, "exp_return": mu[t], "vol": vol[t]} for t in top], **optimal,
                       "main": optimal["portfolios"][0]["key"]},
     })
