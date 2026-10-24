@@ -4,8 +4,9 @@
   /** series: [{ name, color, width?, opacity?, points: [{ date: 'YYYY-MM-DD', value }] }] */
   let { series, height = 280, label = 'Capital (US$)' } = $props();
 
-  const margin = { top: 12, right: 16, bottom: 28, left: 64 };
   let width = $state(800);
+  // En pantallas angostas el eje Y cede ancho al gráfico
+  const margin = $derived({ top: 12, right: width < 480 ? 10 : 16, bottom: 28, left: width < 480 ? 50 : 64 });
   let hover = $state(null);
 
   const t = (d) => new Date(d).getTime();
@@ -26,7 +27,9 @@
     for (let yr = new Date(xMin).getUTCFullYear() + 1; yr <= new Date(xMax).getUTCFullYear(); yr++) {
       years.push(`${yr}-01-01`);
     }
-    return years;
+    // Si los años no caben (unos 40 px cada uno), se muestra uno de cada k
+    const step = Math.max(1, Math.ceil(years.length / Math.max(1, Math.floor(innerW / 40))));
+    return years.filter((_, i) => i % step === 0);
   });
 
   const path = (pts) => pts.map((p, i) => `${i ? 'L' : 'M'}${x(p.date).toFixed(1)},${y(p.value).toFixed(1)}`).join(' ');

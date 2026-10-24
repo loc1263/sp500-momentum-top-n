@@ -166,4 +166,13 @@
     font-size: .75rem; color: var(--muted);
   }
   .axis span:last-child { text-align: right; }
+
+  @media (max-width: 640px) {
+    .ranges { padding: 8px 10px; }
+    .rrow { grid-template-columns: 58px 1fr 88px; gap: 8px; }
+    .val { font-size: .75rem; }
+    .axis { padding: 0 96px 0 66px; }
+    .axis span:nth-child(2) { display: none; }
+    .axis { grid-template-columns: 1fr 1fr; }
+  }
 </style>
