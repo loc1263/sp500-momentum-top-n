@@ -223,7 +223,7 @@ python -m top3 actual                         # Top N de hoy (plazo y top_n del 
 python -m top3 actual --months 6 --top-n 3    # otro plazo / otra cantidad
 python -m top3 actual --min-cap-billions 200  # solo mega-cap
 python -m top3 etf                            # ranking de ETFs de Vanguard
-python -m top3 prune                            # limpia a mano las corridas viejas de SQLite
+python -m top3 prune                            # borra reportes, corridas y caché viejos (7 días)
 python -m pytest                              # tests del backend (requiere requirements-dev.txt)
 ```
 
@@ -485,8 +485,15 @@ cada combinación del día más reciente. Para que la base no crezca sin límite
   reemplaza: las que tienen el mismo universo, período, plazo, desfase y modelo (N-0 o N-1), que es lo que
   identifica una corrida en el informe. Es rápido, así que se hace en cada ejecución. Compactar el archivo
   (`VACUUM`) es lo lento: se hace como mucho una vez por día.
-- Para forzarlo a mano: `python -m top3 prune` (o `--keep-days N`).
-- No se toca `actual_picks` (historial del Top actual, que usa la comparación con la corrida anterior) ni los precios.
+- Para forzarlo a mano: `python -m top3 prune` (o `--keep-days N`). Además de las corridas, esa limpieza completa
+  (que `run_pipeline.py` corre como último paso; se omite con `--skip-prune`) borra:
+  - los reportes HTML de `output/` de más de `[output] keep_days` días (7), contados desde el reporte más reciente;
+  - los precios anteriores a la ventana de `[data] history_years`;
+  - los datos de caché ya vencidos (acciones en circulación, datos financieros y tickers sin datos), y luego compacta
+    la base.
+- No se toca `actual_picks` ni `etf_scores` (historial del Top actual y de los ETFs: de ahí salen el calendario de
+  rebalanceo, la comparación con la corrida anterior y el seguimiento; pesan muy poco) ni los precios dentro de la
+  ventana (el backtest los necesita). Los logs de `log/` se sobrescriben en cada corrida, no se acumulan.
 
 ### Depuración
 
@@ -576,7 +583,7 @@ frontend/             # Aplicación web en Svelte 5 + Vite
 | `python -m top3 etf` | Ranking de momentum ajustado por riesgo de los ETFs de Vanguard (sin backtest) |
 | `python -m top3 quant` | Modelo por score: scores de momentum, de salud financiera y técnico del S&P 500 y Markowitz sobre las mejores (sin backtest) |
 | `backend/run_pipeline.py` | Pipeline completo: backtest (todos los períodos y universos) + Top actual de cada universo + ETFs + modelo por score + JSON del frontend |
-| `python -m top3 prune` | Limpia a mano las corridas viejas de SQLite (se hace sola en cada backtest) |
+| `python -m top3 prune` | Limpieza de lo viejo: reportes HTML, corridas del backtest y caché vencida (el pipeline la corre al final) |
 | `python -m top3 export` | Escribe ese mismo JSON en `frontend/public/data/report.json` (lo hacen solos los scripts al terminar) |
 | `backend/data/`, `backend/output/`, `backend/log/` | Base SQLite, reportes HTML y logs; se crean solos |
 

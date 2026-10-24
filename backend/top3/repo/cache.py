@@ -12,6 +12,16 @@ def save_shares(conn: sqlite3.Connection, ticker: str, shares: float, fetched: s
                  (ticker, shares, fetched))
 
 
+def delete_shares_before(conn: sqlite3.Connection, day: str) -> int:
+    """Borra las acciones en circulación guardadas antes de `day` y devuelve cuántas filas."""
+    return conn.execute("DELETE FROM shares WHERE fetched < ?", (day,)).rowcount
+
+
+def delete_fundamentals_before(conn: sqlite3.Connection, day: str) -> int:
+    """Borra los datos financieros guardados antes de `day` y devuelve cuántas filas."""
+    return conn.execute("DELETE FROM fundamentals WHERE fetched < ?", (day,)).rowcount
+
+
 def fresh_fundamentals(conn: sqlite3.Connection, cutoff: str) -> list[tuple[str, str]]:
     """(ticker, JSON de datos financieros) guardados desde `cutoff` en adelante."""
     return conn.execute("SELECT ticker, data FROM fundamentals WHERE fetched >= ?", (cutoff,)).fetchall()

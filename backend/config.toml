@@ -73,6 +73,8 @@ sweep_min_cap_billions = [0, 10, 200]
 [output]
 # Carpeta de los reportes HTML (nombre: top3_backtest_YYYYMMDD.html / top3_sweep_YYYYMMDD.html)
 dir = "output"
+# Días de reportes HTML que se conservan (los más viejos se borran al final del pipeline o con `python -m top3 prune`)
+keep_days = 7
 # Subcarpetas dentro de dir y prefijos de archivo (se les agrega el sufijo de universo y _YYYYMMDD.html)
 backtest_subdir = "backtest"
 actual_subdir = "actual"

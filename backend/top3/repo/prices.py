@@ -17,6 +17,16 @@ def clear(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def delete_before(conn: sqlite3.Connection, day: str) -> int:
+    """Borra los precios anteriores a `day` (YYYY-MM-DD) y devuelve cuántas filas."""
+    return conn.execute("DELETE FROM prices WHERE date < ?", (day,)).rowcount
+
+
+def forget_no_data_before(conn: sqlite3.Connection, day: str) -> int:
+    """Olvida los tickers sin datos consultados hasta `day` inclusive (ya vencieron: se volverían a pedir igual)."""
+    return conn.execute("DELETE FROM no_data_tickers WHERE checked <= ?", (day,)).rowcount
+
+
 def delete_tickers(conn: sqlite3.Connection, tickers: list[str]) -> None:
     conn.executemany("DELETE FROM prices WHERE ticker = ?", [(t,) for t in tickers])
 

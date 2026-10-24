@@ -1,5 +1,5 @@
 """Pipeline completo: tests (opcional) -> backtest de todos los períodos y universos -> Top actual de cada universo
--> ranking de ETFs -> modelo por score -> JSON del frontend.
+-> ranking de ETFs -> modelo por score -> JSON del frontend -> limpieza de lo viejo.
 
     python run_pipeline.py                 # todo, con caché y descarga incremental de precios
     python run_pipeline.py --no-cache      # descarga todo de nuevo
@@ -59,6 +59,8 @@ def build_steps(cfg: Config, args):
         steps.append(("Modelo por score: scores de momentum, salud y técnico, y Markowitz",
                       [py, "-m", "top3", "quant", *config, *cache()]))
     steps.append(("Exportar JSON del frontend", [py, "-m", "top3", "export", *config]))
+    if not args.skip_prune:
+        steps.append(("Limpieza de datos y reportes viejos", [py, "-m", "top3", "prune", *config]))
     return steps
 
 
@@ -73,6 +75,7 @@ def main(argv=None):
     ap.add_argument("--skip-actual", action="store_true", help="Omite el Top actual")
     ap.add_argument("--skip-quant", action="store_true", help="Omite el modelo por score (scores y Markowitz)")
     ap.add_argument("--skip-etf", action="store_true", help="Omite el ranking de ETFs de Vanguard")
+    ap.add_argument("--skip-prune", action="store_true", help="Omite la limpieza final de datos y reportes viejos")
     args = ap.parse_args(argv)
 
     cfg = load_config(args.config)

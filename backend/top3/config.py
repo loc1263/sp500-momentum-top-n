@@ -71,6 +71,7 @@ class OutputConfig:
     """[output]: reportes HTML, logs y JSON del frontend."""
 
     dir: str = "output"
+    keep_days: int = 7                  # días de reportes HTML que se conservan (ver top3.cleanup)
     backtest_subdir: str = "backtest"
     actual_subdir: str = "actual"
     backtest_prefix: str = "top3_backtest"
