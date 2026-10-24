@@ -1,5 +1,6 @@
 """Configuración tipada: una dataclass por sección de config.toml, con los valores por defecto en los campos."""
 import tomllib
+from datetime import date, timedelta
 import typing
 from dataclasses import dataclass, field, fields
 from pathlib import Path
@@ -28,6 +29,10 @@ class DataConfig:
     runs_keep_days: int = 7
     shares_ttl_days: int = 30
     no_data_ttl_days: int = 30
+
+    def history_start(self, today: date) -> str:
+        """Primer día del histórico a descargar (YYYY-MM-DD): `history_years` años antes de `today`."""
+        return (today - timedelta(days=round(self.history_years * 365.25))).isoformat()
 
 
 @dataclass

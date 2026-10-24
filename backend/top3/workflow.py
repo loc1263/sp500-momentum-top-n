@@ -1,6 +1,6 @@
 """Flujos del backtest: arman las corridas, las muestran por consola y escriben los reportes HTML."""
 from dataclasses import dataclass, replace
-from datetime import date, timedelta
+from datetime import date
 from pathlib import Path
 
 import pandas as pd
@@ -8,10 +8,9 @@ import pandas as pd
 from . import console, errors as E, html_report, universe as universes
 from .analysis import SKIP_MONTHS, Context, attach_market_caps, run_calendars, run_terms
 from .config import BacktestConfig, Config
-from .constituents import Constituents, ensure_constituents
 from .db import open_db
 from .logs import log
-from .prices import ensure_prices, load_prices
+from .market import refresh_market_data
 from .universe import Universe, UniverseBuilder
 
 
@@ -92,8 +91,7 @@ def run_backtest_job(cfg: Config, job: BacktestJob) -> list[Path]:
     settings = cfg.data
 
     today = date.today()
-    history_start = (today - timedelta(days=round(settings.history_years * 365.25))).isoformat()
-    price_end = (today + timedelta(days=1)).isoformat()  # yfinance: end exclusivo
+    history_start = settings.history_start(today)
 
     end_date = pd.to_datetime(bt_cfg.end_date or today)
     periods = resolve_periods(bt_cfg, end_date, job.years)
@@ -110,13 +108,8 @@ def run_backtest_job(cfg: Config, job: BacktestJob) -> list[Path]:
 
     conn = open_db(settings.db_path)
     try:
-        ensure_constituents(conn, settings, job.use_cache)
-        constituents = Constituents(conn, cfg.tickers.aliases)
-        tickers = constituents.all_between(history_start, today)
-        log.info("Tickers únicos que pasaron por el S&P 500 en el histórico: %d", len(tickers))
-
-        ensure_prices(conn, tickers, history_start, price_end, job.use_cache, settings)
-        prices = load_prices(conn)
+        market = refresh_market_data(conn, cfg, job.use_cache, today)
+        constituents, prices = market.constituents, market.prices
 
         levels = resolve_levels(job, cfg)
         known_shares: dict[str, float] = {}  # acciones en circulación ya bajadas: se reutilizan en toda la corrida

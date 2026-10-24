@@ -3,17 +3,16 @@ Markowitz sobre las mejores.
 
 No hay backtest: es una foto de hoy (precios hasta la última rueda y últimos datos financieros publicados)."""
 import math
-from datetime import date, datetime, timedelta
+from datetime import datetime
 
 import numpy as np
 import pandas as pd
 
 from .. import errors as E
 from ..config import Config, QuantConfig
-from ..constituents import Constituents, ensure_constituents
 from ..db import open_db
 from ..logs import log
-from ..prices import ensure_prices, load_prices
+from ..market import refresh_market_data
 from ..repo import quant as store
 from . import fundamentals, markowitz, momentum as momentum_model, ohlcv as ohlcv_store, technical as technical_model
 
@@ -34,19 +33,12 @@ def _clean(value):
 def run_quant(cfg: Config, use_cache: bool = True) -> dict:
     """Actualiza precios, OHLCV y datos financieros, calcula los scores y Markowitz y guarda el resultado en SQLite."""
     settings = cfg.data
-    q = cfg.quant
-    today = date.today()
-    history_start = (today - timedelta(days=round(cfg.data.history_years * 365.25))).isoformat()
-    conn = open_db(cfg.data.db_path)
+    conn = open_db(settings.db_path)
     try:
-        ensure_constituents(conn, settings, use_cache)
-        constituents = Constituents(conn, cfg.tickers.aliases)
-        tickers = sorted(constituents.current)
-        ensure_prices(conn, constituents.all_between(history_start, today), history_start,
-                      (today + timedelta(days=1)).isoformat(), use_cache, settings)
-        prices = load_prices(conn)
-        data = fundamentals.ensure_fundamentals(conn, tickers, use_cache, q.fundamentals_ttl_days,
-                                      settings.shares_workers)
+        market = refresh_market_data(conn, cfg, use_cache)
+        prices, tickers = market.prices, sorted(market.constituents.current)
+        data = fundamentals.ensure_fundamentals(conn, tickers, use_cache, cfg.quant.fundamentals_ttl_days,
+                                                settings.shares_workers)
         ohlcv_store.ensure_ohlcv(conn, tickers, use_cache, settings.batch_size)
         ohlcv = ohlcv_store.load_ohlcv(conn)
     finally:

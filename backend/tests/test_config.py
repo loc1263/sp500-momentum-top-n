@@ -296,3 +296,10 @@ def test_pipeline_step_titles_and_summary_are_green(monkeypatch):
     assert green("=" * 78) in text and green("RESUMEN") in text
     detail = [line for line in text.split("\n") if "Exportar JSON del frontend" in line and "OK" in line]
     assert len(detail) == 1 and logs.GREEN not in detail[0]                       # el detalle de cada paso no
+
+
+def test_history_start_is_history_years_before_today():
+    from datetime import date
+
+    from top3.config import DataConfig
+    assert DataConfig(history_years=10).history_start(date(2026, 6, 15)) == "2016-06-15"
