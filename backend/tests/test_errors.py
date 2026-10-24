@@ -37,5 +37,5 @@ def test_every_warning_error_and_exception_log_carries_a_code():
 
 
 def test_every_code_is_documented():
-    doc = (ROOT.parent / "docs" / "errores.md").read_text(encoding="utf-8")
+    doc = (ROOT.parent / "README.md").read_text(encoding="utf-8")
     assert [i for i in errors.CATALOG if i not in doc] == []

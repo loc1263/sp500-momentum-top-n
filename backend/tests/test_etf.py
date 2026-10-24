@@ -117,6 +117,7 @@ def _run(cfg, tmp_path, monkeypatch, data, **kwargs):
     csv = tmp_path / "e.csv"
     csv.write_text("ticker,name,category\n" + "\n".join(f"{t},{t} ETF,Cat" for t in data.columns), encoding="utf-8")
     cfg["etf"]["csv"] = str(csv)
+    cfg["etf"]["update_list"] = False                    # los tests no usan la red
     monkeypatch.setattr(etf, "download_recent", lambda tickers, start, end, batch_size: data[tickers])
     return etf.run_etf(cfg, **kwargs)
 
@@ -137,6 +138,7 @@ def test_run_etf_saves_ranking_and_writes_report(cfg, tmp_path, monkeypatch, cap
 def test_run_etf_twice_replaces_and_reports_changes_against_previous_day(cfg, tmp_path, monkeypatch):
     import sqlite3
     cfg["etf"]["risk_free_ticker"] = ""
+    cfg["etf"]["min_vol"] = 0                  # B hoy sube a ritmo constante (volatilidad casi nula)
     data = prices(A=(0.002, 0.005), B=(0.0005, 0.005), C=(-0.001, 0.005))
     _run(cfg, tmp_path, monkeypatch, data.iloc[:-1], top_n=1)            # ayer: A primero
     swapped = data.copy()
@@ -187,3 +189,16 @@ def test_run_etf_with_nothing_rankable_stops_with_an_error(cfg, tmp_path, monkey
 def test_etf_args():
     args = top3_etf.parse_args(["--as-of", "2025-06-30", "--top-n", "5", "--csv", "x.csv"])
     assert (args.as_of, args.top_n, args.csv) == ("2025-06-30", 5, "x.csv")
+
+
+
+def test_cash_like_etfs_stay_out_of_the_ranking_but_the_reference_still_applies():
+    p = prices(CASH=(0.0002, 0.0001), BILL=(0.00022, 0.0001), STOCK=(0.0008, 0.01), BOND=(0.0002, 0.003))
+    ranked, excluded = etf.score_etfs(p, [3, 6, 12], risk_free="CASH", min_vol=0.01)
+    assert excluded == {}
+    assert ranked.attrs["cash_like"] == ["BILL", "CASH"]
+    assert list(ranked.index) == ["STOCK", "BOND"] or list(ranked.index) == ["BOND", "STOCK"]
+    assert ranked.attrs["risk_free"] == "CASH"
+    # sin umbral, BILL (apenas mejor que la referencia) competiría con un score enorme
+    plain, _ = etf.score_etfs(p, [3, 6, 12], risk_free="CASH")
+    assert plain.attrs["cash_like"] == [] and "BILL" in plain.index

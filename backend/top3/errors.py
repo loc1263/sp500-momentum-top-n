@@ -97,6 +97,10 @@ ETF_NO_RISK_FREE = _code("TOP-ETF-005", "warning", "La referencia libre de riesg
                          "El score se calcula sin restarla (los ETFs casi sin riesgo quedan arriba). "
                          "Revisa [etf] risk_free_ticker: debe estar en la lista y tener historia completa.")
 
+ETF_LIST_UPDATE = _code("TOP-ETF-006", "warning", "No se pudo actualizar la lista de ETFs de Vanguard",
+                        "Se usa la lista guardada en el CSV. Revisa la conexión; si Vanguard cambió el formato de su "
+                        "respuesta hay que ajustar top3/vanguard.py. Con --no-update o [etf] update_list = false no se intenta.")
+
 # Servidor
 API_REPORT = _code("TOP-API-001", "error", "Error armando /api/report",
                    "Revisa que exista la base SQLite y que se haya corrido el pipeline al menos una vez.")

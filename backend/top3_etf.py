@@ -1,6 +1,7 @@
 """Ranking de momentum de los ETFs de Vanguard: retorno ajustado por riesgo, sin backtest.
 
-Toma la lista de [etf] csv (por defecto vanguard_etfs.csv), descarga los precios ajustados y ordena los ETFs por
+Toma la lista de [etf] csv (por defecto vanguard_etfs.csv; antes le agrega los ETFs nuevos que Vanguard publica
+en su página de productos, salvo con --no-update), descarga los precios ajustados y ordena los ETFs por
 score = promedio del retorno / volatilidad en los plazos de [etf] horizons_months. Con --as-of calcula el ranking con
 los datos hasta esa fecha (usa la lista actual: no es un backtest).
 """
@@ -20,6 +21,8 @@ def parse_args(argv=None) -> argparse.Namespace:
     ap.add_argument("--top-n", type=int, default=None, metavar="N",
                     help="Cuántos ETFs mostrar en la consola (default: [etf] top_n del config)")
     ap.add_argument("--csv", default=None, help="Otra lista de ETFs (default: [etf] csv del config)")
+    ap.add_argument("--no-update", action="store_true",
+                    help="No agrega a la lista los ETFs nuevos de Vanguard (default: los agrega, [etf] update_list)")
     return ap.parse_args(argv)
 
 
@@ -29,7 +32,7 @@ def main(argv=None) -> None:
     cfg = load_config(args.config)
     setup_logging(cfg["output"]["etf_log"], cfg["output"]["log_dir"])
     log_config(cfg, args.config)
-    run_etf(cfg, as_of=args.as_of, top_n=args.top_n, csv_path=args.csv)
+    run_etf(cfg, as_of=args.as_of, top_n=args.top_n, csv_path=args.csv, update_list=not args.no_update)
 
 
 if __name__ == "__main__":

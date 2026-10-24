@@ -60,9 +60,12 @@ DEFAULT_CONFIG: dict[str, dict] = {
         "frontend_data": "../frontend/public/data/report.json",
     },
     "etf": {
+        "update_list": True,                   # al correr top3_etf.py agrega a la lista los ETFs nuevos de Vanguard
+        "list_url": "https://investor.vanguard.com/investment-products/list/funddetail/all",
         "csv": "vanguard_etfs.csv",           # lista de ETFs de Vanguard (ticker, name, category)
         "horizons_months": [3, 6, 12],         # plazos del retorno ajustado por riesgo; el score es su promedio
         "top_n": 15,                           # cuántos se muestran en la consola
+        "min_vol": 0.01,                       # volatilidad anual mínima para rankear: bajo eso es tipo efectivo
         "risk_free_ticker": "VUSB",            # ETF de bonos ultracortos: su retorno se resta al de cada ETF; "" = sin restar
     },
     "server": {

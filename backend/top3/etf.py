@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from . import console, errors as E, html_report, rotation
+from . import console, errors as E, html_report, rotation, vanguard
 from .actual import download_recent
 from .db import open_db
 from .logs import log
@@ -40,12 +40,16 @@ def load_universe(path: str | Path) -> pd.DataFrame:
 
 
 def score_etfs(prices: pd.DataFrame, horizons: list[int], trading_days_per_month: int = 21,
-               risk_free: str | None = None) -> tuple[pd.DataFrame, dict]:
+               risk_free: str | None = None, min_vol: float = 0.0) -> tuple[pd.DataFrame, dict]:
     """Ranking por retorno ajustado por riesgo. `prices` = precios ajustados (fecha x ticker).
 
     Con `risk_free` (un ticker de la propia tabla, p. ej. un ETF de bonos ultracortos) el retorno de cada plazo es el
     exceso sobre el de esa referencia: sin eso, un ETF casi sin riesgo siempre ganaría. Si la referencia no está
     disponible se calcula sin ella y `result.attrs["risk_free"]` queda en None.
+
+    Con `min_vol` (volatilidad anual) los ETFs de tipo efectivo (letras del Tesoro, bonos ultracortos) quedan fuera
+    del ranking: con tan poco riesgo cualquier exceso diminuto sobre la referencia da un score enorme. Se listan en
+    `result.attrs["cash_like"]` (la referencia libre de riesgo, aunque no rankee, sigue restándose).
 
     Devuelve (tabla ordenada de mayor a menor score, {ticker: motivo} de los excluidos). La tabla trae, por ETF:
     `ret_<h>` (retorno de cada plazo), `vol` (volatilidad anualizada del plazo más largo), `max_dd` (caída máxima del
@@ -80,9 +84,11 @@ def score_etfs(prices: pd.DataFrame, horizons: list[int], trading_days_per_month
     out["score"] = pd.concat(ratios, axis=1).mean(axis=1, skipna=False)
     flat = out["score"].isna()
     excluded.update({t: "volatilidad nula" for t in out.index[flat]})
-    out = out[~flat].sort_values("score", ascending=False)
+    cash_like = [t for t in out.index[~flat] if out.at[t, "vol"] < min_vol]
+    out = out[~flat].drop(index=cash_like).sort_values("score", ascending=False)
     out["rank"] = range(1, len(out) + 1)
     out.attrs["risk_free"] = risk_free
+    out.attrs["cash_like"] = sorted(cash_like)
     return out, excluded
 
 
@@ -125,9 +131,32 @@ def describe_changes(previous_as_of: str | None, changes: dict[str, list[str]], 
             f"salen {', '.join(changes['exited']) or '-'}.")
 
 
-def run_etf(cfg: dict, as_of: str | None = None, top_n: int | None = None, csv_path: str | None = None) -> Path:
-    """Descarga los precios, calcula el ranking, lo guarda en SQLite, lo imprime y escribe el reporte HTML."""
+def refresh_list(cfg: dict) -> None:
+    """Agrega a la lista (`[etf] csv`) los ETFs nuevos de Vanguard. Si no se puede, sigue con la lista guardada."""
+    etf_cfg, data = cfg["etf"], cfg["data"]
+    try:
+        etfs = vanguard.fetch_etfs(etf_cfg["list_url"], data["user_agent"], int(data["http_timeout"]))
+        added, gone = vanguard.update_list(etf_cfg["csv"], etfs)
+    except Exception as e:
+        log.warning(E.ETF_LIST_UPDATE.msg("No se pudo actualizar la lista desde Vanguard: %s"), e)
+        return
+    if added:
+        log.info("Lista de ETFs: se agregaron %d de Vanguard: %s", len(added), ", ".join(added))
+    else:
+        log.info("Lista de ETFs: al día con Vanguard (%d ETFs)", len(etfs))
+    if gone:
+        log.info("Lista de ETFs: Vanguard ya no lista %s (quítalos de %s si dejaron de cotizar)",
+                 ", ".join(gone), etf_cfg["csv"])
+
+
+def run_etf(cfg: dict, as_of: str | None = None, top_n: int | None = None, csv_path: str | None = None,
+            update_list: bool = True) -> Path:
+    """Descarga los precios, calcula el ranking, lo guarda en SQLite, lo imprime y escribe el reporte HTML.
+
+    Con la lista del config (sin `csv_path`) y `[etf] update_list`, antes agrega los ETFs nuevos de Vanguard."""
     etf_cfg = cfg["etf"]
+    if update_list and csv_path is None and etf_cfg["update_list"]:
+        refresh_list(cfg)
     horizons = sorted(int(h) for h in etf_cfg["horizons_months"])
     top_n = top_n or int(etf_cfg["top_n"])
     tdpm = int(cfg["backtest"]["trading_days_per_month"])
@@ -145,7 +174,8 @@ def run_etf(cfg: dict, as_of: str | None = None, top_n: int | None = None, csv_p
                     ", ".join(without_prices))
 
     risk_free = (etf_cfg.get("risk_free_ticker") or "").upper() or None
-    scores, excluded = score_etfs(prices, horizons, tdpm, risk_free)
+    min_vol = float(etf_cfg["min_vol"])
+    scores, excluded = score_etfs(prices, horizons, tdpm, risk_free, min_vol)
     if risk_free and not scores.empty and scores.attrs["risk_free"] is None:
         log.warning(E.ETF_NO_RISK_FREE.msg("La referencia libre de riesgo %s no está disponible: el score se calcula "
                                            "sin restarla"), risk_free)
@@ -170,7 +200,10 @@ def run_etf(cfg: dict, as_of: str | None = None, top_n: int | None = None, csv_p
     headers, rows = table_rows(scores, universe, horizons)
     excluded_note = ("Fuera del ranking: " + ", ".join(f"{t} ({why})" for t, why in sorted(excluded.items()))
                      if excluded else "")
+    cash_like = scores.attrs["cash_like"]
+    cash_note = (f"Tipo efectivo, fuera del ranking (volatilidad anual < {min_vol * 100:g}%): {', '.join(cash_like)}"
+                 if cash_like else "")
+    notes = [note, excluded_note, cash_note]
     ref = scores.attrs["risk_free"]
-    console.print_etf(data_day, horizons, top_n, len(scores), headers, rows, [note, excluded_note], bool(as_of), ref)
-    return html_report.etf_report(cfg, data_day, horizons, top_n, headers, rows, [note, excluded_note], bool(as_of),
-                                  ref)
+    console.print_etf(data_day, horizons, top_n, len(scores), headers, rows, notes, bool(as_of), ref)
+    return html_report.etf_report(cfg, data_day, horizons, top_n, headers, rows, notes, bool(as_of), ref)
