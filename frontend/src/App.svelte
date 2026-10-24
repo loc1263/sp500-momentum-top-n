@@ -10,14 +10,21 @@
   import Bunny from './lib/Bunny.svelte';
   import { share } from './lib/format.js';
 
-  const tabs = [
-    { id: 'actual', label: 'Top actual' },
-    { id: 'backtest', label: 'Backtest' },
-    { id: 'sweep', label: 'Plazos y sensibilidad' },
-    { id: 'compare', label: 'N-0 vs N-1' },
-    { id: 'etf', label: 'ETFs Vanguard' },
-    { id: 'quant', label: 'Modelo base' },
+  // Las cuatro primeras son la misma estrategia de momentum; ETFs y Modelo por score son análisis aparte
+  const groups = [
+    {
+      label: 'Estrategia de momentum',
+      tabs: [
+        { id: 'actual', label: 'Top actual' },
+        { id: 'backtest', label: 'Backtest' },
+        { id: 'sweep', label: 'Plazos y sensibilidad' },
+        { id: 'compare', label: 'N-0 vs N-1' },
+      ],
+    },
+    { label: 'ETFs', tabs: [{ id: 'etf', label: 'ETFs Vanguard' }] },
+    { label: 'Acciones', tabs: [{ id: 'quant', label: 'Modelo por score' }] },
   ];
+  const tabs = groups.flatMap((g) => g.tabs);
 
   // About no está en el menú: es un botón aparte, en la esquina opuesta
   const initialTab = () =>
@@ -52,7 +59,15 @@
   }
 
   $effect(() => {
-    load().then((r) => (report = r), (e) => (error = e.message));
+    load().then(
+      (r) => {
+        // Universo por defecto: el de mayor capitalización mínima (mega-cap)
+        const all = [...r.actual, ...r.backtest];
+        if (all.length) capKey = key(all.reduce((m, u) => ((u.min_cap_billions ?? 0) > (m.min_cap_billions ?? 0) ? u : m)));
+        report = r;
+      },
+      (e) => (error = e.message),
+    );
   });
 
   $effect(() => {
@@ -92,7 +107,7 @@
     {#if tab === 'etf'}
       <h1>ETFs de Vanguard</h1>
     {:else if tab === 'quant'}
-      <h1>Modelo base</h1>
+      <h1>Modelo por score</h1>
     {:else if tab === 'about'}
       <h1>About</h1>
     {:else}
@@ -121,10 +136,17 @@
   {:else}
     <nav>
       <div class="tabs" role="tablist">
-        {#each tabs as t}
-          <button role="tab" aria-selected={tab === t.id} class:active={tab === t.id} onclick={() => (tab = t.id)}>
-            {t.label}
-          </button>
+        {#each groups as g (g.label)}
+          <div class="group" role="presentation">
+            <span class="cap" class:on={g.tabs.some((t) => t.id === tab)}>{g.label}</span>
+            <div class="row" role="presentation">
+              {#each g.tabs as t (t.id)}
+                <button role="tab" aria-selected={tab === t.id} class:active={tab === t.id} onclick={() => (tab = t.id)}>
+                  {t.label}
+                </button>
+              {/each}
+            </div>
+          </div>
         {/each}
       </div>
       <div class="filters">
@@ -167,7 +189,7 @@
       {#if report.quant}
         <QuantView quant={report.quant} />
       {:else}
-        <p class="muted">Sin modelo base. Ejecute top3_quant.py.</p>
+        <p class="muted">Sin modelo por score. Ejecute top3_quant.py.</p>
       {/if}
     {:else if tab === 'actual'}
       {#if actual}
@@ -186,7 +208,7 @@
     {/if}
 
     <footer>
-      Generado el {report.generated_at.replace('T', ' ')}. {#if tab === 'quant'}Modelo base: foto de hoy, sin backtest; los datos financieros son los últimos publicados (Yahoo Finance). {/if}&nbsp;Backtest con comisión de {share(report.settings.commission ?? 0, 2)} por lado, sin impuestos, ponderación igual
+      Generado el {report.generated_at.replace('T', ' ')}. {#if tab === 'quant'}Modelo por score: foto de hoy, sin backtest; los datos financieros son los últimos publicados (Yahoo Finance). {/if}&nbsp;Backtest con comisión de {share(report.settings.commission ?? 0, 2)} por lado, sin impuestos, ponderación igual
       entre los tickers seleccionados. Excluye tickers sin datos en Yahoo (sesgo de supervivencia). Herramienta de
       análisis, no una recomendación de inversión.
     </footer>
@@ -196,13 +218,13 @@
 <Bunny />
 
 <style>
-  main { max-width: 1280px; margin: 0 auto; padding: var(--space-5) var(--space-4) 56px; }
-  header { position: relative; padding-right: 190px; min-height: 52px; }
+  main { max-width: 1280px; margin: 0 auto; padding: var(--space-4) var(--space-4) 48px; }
+  header { position: relative; padding-right: 190px; min-height: 40px; }
   header .sub { margin-bottom: var(--space-3); }
   .corner { position: absolute; top: 0; right: 0; display: flex; gap: var(--space-2); }
   .corner button {
     background: var(--card); color: var(--fg); border: 1px solid var(--line); border-radius: var(--radius-sm);
-    padding: 5px 12px; font-size: .85rem; cursor: pointer; box-shadow: var(--shadow);
+    padding: 3px 10px; font-size: .8rem; cursor: pointer; box-shadow: var(--shadow);
     transition: border-color .12s ease, color .12s ease;
   }
   .corner button:hover { border-color: var(--muted); }
@@ -215,11 +237,19 @@
     padding: var(--space-2) var(--space-4) 0; background: color-mix(in srgb, var(--bg) 90%, transparent);
     backdrop-filter: blur(8px);
   }
-  .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); flex: 1 1 auto; overflow-x: auto; scrollbar-width: none; }
+  .tabs { display: flex; gap: var(--space-4); border-bottom: 1px solid var(--line); flex: 1 1 auto; overflow-x: auto; scrollbar-width: none; }
+  .group { display: flex; flex-direction: column; flex: none; }
+  .group + .group { border-left: 1px solid var(--line); padding-left: var(--space-4); }
+  .cap {
+    font-size: .64rem; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--muted);
+    padding: 0 12px; opacity: .8;
+  }
+  .cap.on { color: var(--accent); opacity: 1; }
+  .row { display: flex; gap: 2px; }
   .tabs::-webkit-scrollbar { display: none; }
   .tabs button {
     background: none; border: 0; border-bottom: 2px solid transparent; color: var(--muted); cursor: pointer;
-    padding: 9px 14px; margin-bottom: -1px; white-space: nowrap; border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+    padding: 7px 12px; margin-bottom: -1px; font-size: .88rem; white-space: nowrap; border-radius: var(--radius-sm) var(--radius-sm) 0 0;
     transition: color .12s ease, background-color .12s ease, border-color .12s ease;
   }
   .tabs button:hover { color: var(--fg); background: var(--accent-soft); }

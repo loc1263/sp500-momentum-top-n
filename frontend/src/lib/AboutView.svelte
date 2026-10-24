@@ -4,45 +4,26 @@
   let { settings } = $props();
 
   const sections = [
-    {
-      tab: 'Top actual',
-      text: 'Las acciones del S&P 500 que hoy lideran el ranking de momentum (modelo N-0): las que más subieron en la ventana de los últimos N meses. Incluye los suplentes (los puestos siguientes), qué entra y qué sale respecto de la corrida anterior, el próximo rebalanceo y cómo le fue a cada selección guardada desde que se eligió.',
-    },
-    {
-      tab: 'Backtest',
-      text: 'Qué habría pasado con la estrategia en el pasado: la curva de capital, el historial de selecciones en cada rebalanceo y el resultado de cada fecha de arranque posible. Se puede elegir el plazo, el período y el universo.',
-    },
-    {
-      tab: 'Plazos y sensibilidad',
-      text: 'Compara los plazos entre sí (cada cuántos meses se rebalancea) y mide cuánto del resultado depende del mes en que se hubiera empezado. Muestra el resultado típico (mediana), el peor y el mejor arranque.',
-    },
-    {
-      tab: 'N-0 vs N-1',
-      text: 'Compara el modelo de siempre (N-0) con una variante que ignora el último mes al armar el ranking (N-1, «skip-month»), plazo por plazo y en las dos mitades del período, para ver si una ventaja se sostiene en el tiempo o depende de un solo tramo del mercado.',
-    },
-    {
-      tab: 'ETFs Vanguard',
-      text: 'Un ranking aparte, sin backtest: los ETFs de Vanguard ordenados por cuánto subieron por unidad de riesgo (retorno ajustado por volatilidad en 3, 6 y 12 meses, descontando la referencia libre de riesgo), con su tendencia y caída máxima. Los ETFs de tipo efectivo (letras del Tesoro, bonos ultracortos) no entran al ranking.',
-    },
-    {
-      tab: 'Modelo base',
-      text: 'Un score por acción para todo el S&P 500, sin backtest: uno de momentum (retorno de 12 y de 6 meses sin el último mes), otro de salud financiera (rentabilidad, solvencia, liquidez y generación de caja, con los últimos datos publicados; la caja pesa el doble porque una empresa que genera caja de forma sostenida es más confiable), otro técnico (medias móviles, ADX, MACD, RSI, estocástico, Bollinger, OBV, MFI y rango de 52 semanas) y el promedio de los tres como score final. Sobre las 10 mejores se calcula Markowitz (máximo retorno con volatilidad acotada, máximo Sharpe y mínima varianza). Es una foto de hoy: los retornos esperados de Markowitz son una suposición y los pesos son orientativos.',
-    },
+    ['Top actual', 'Las acciones que hoy lideran el ranking de momentum (N-0), con suplentes, qué entra y sale, próximo rebalanceo y seguimiento de selecciones pasadas.'],
+    ['Backtest', 'Qué habría pasado en el pasado: curva de capital, selecciones en cada rebalanceo y resultado de cada fecha de arranque.'],
+    ['Plazos y sensibilidad', 'Compara plazos de rebalanceo y mide cuánto depende el resultado del mes de arranque (típico, peor y mejor).'],
+    ['N-0 vs N-1', 'El modelo de siempre frente a una variante que ignora el último mes («skip-month»), plazo por plazo y por mitades del período.'],
+    ['ETFs Vanguard', 'Ranking sin backtest por retorno ajustado por riesgo a 3, 6 y 12 meses, con tendencia y caída máxima. Los ETFs de efectivo no entran.'],
+    ['Modelo por score', 'Scores de momentum, salud financiera y técnico para todo el S&P 500, su promedio y Markowitz sobre las mejores. Es una foto de hoy, sin backtest.'],
   ];
 
   const sources = [
-    ['Precios', 'Yahoo Finance (precios ajustados por dividendos y splits).'],
-    ['Composición del S&P 500', 'CSV histórico del repositorio hanshof/sp500_constituents y las altas y bajas de Wikipedia: en cada fecha del backtest solo compiten las empresas que estaban en el índice ese día (Point-in-Time).'],
-    ['Datos financieros y técnicos', 'Yahoo Finance: indicadores de los últimos estados financieros de cada empresa y precios (apertura, máximo, mínimo, cierre) y volumen del último año y medio.'],
-    ['Lista de ETFs de Vanguard', 'La página de productos de Vanguard; los ETFs nuevos se agregan solos a la lista.'],
+    ['Precios y datos financieros', 'Yahoo Finance (precios ajustados, volumen y últimos estados financieros).'],
+    ['Composición del S&P 500', 'CSV de hanshof/sp500_constituents y altas y bajas de Wikipedia: en cada fecha solo compiten las empresas que estaban en el índice (Point-in-Time).'],
+    ['ETFs de Vanguard', 'Página de productos de Vanguard; los nuevos se agregan solos.'],
   ];
 
   const limits = [
-    'Sesgo de supervivencia: las empresas que ya no cotizan no tienen precios en Yahoo y quedan fuera, así que los retornos probablemente están inflados.',
-    'La capitalización de los universos large-cap y mega-cap se aproxima con las acciones en circulación de hoy, lo que adelanta la entrada de empresas que hoy son grandes.',
-    'Pocas decisiones: en 5 años hay entre 5 y 20 rebalanceos por plazo, y el resultado depende de unas pocas rachas.',
-    'Modelo base: los datos financieros de Yahoo son una foto de los últimos publicados (no hay histórico), y sin backtest no se sabe si este score habría funcionado; los bancos y aseguradoras se miden solo con rentabilidad.',
-    'No incluye impuestos ni deslizamiento (la diferencia entre el precio de cierre y el que realmente se obtiene).',
+    'Sesgo de supervivencia: las empresas que ya no cotizan quedan fuera y los retornos probablemente están inflados.',
+    'La capitalización large-cap y mega-cap usa las acciones en circulación de hoy, lo que adelanta la entrada de empresas hoy grandes.',
+    'Pocas decisiones: en 5 años hay entre 5 y 20 rebalanceos por plazo.',
+    'Modelo por score: datos financieros de los últimos publicados, sin histórico ni backtest.',
+    'Sin impuestos ni deslizamiento (diferencia entre el precio de cierre y el obtenido).',
   ];
 </script>
 
@@ -50,31 +31,25 @@
   <h2>Qué es esta aplicación</h2>
   <p>
     Evalúa una estrategia de <strong>momentum</strong> sobre el S&amp;P 500: cada <em>N</em> meses se compran, con
-    ponderación igual, las {settings.top_n} acciones que más subieron en los últimos <em>N</em> meses, y se mantienen
-    hasta el siguiente rebalanceo. La aplicación muestra qué habría pasado con esa estrategia en el pasado (backtest) y
-    qué seleccionaría hoy. El plazo de referencia es de {settings.months} meses y el capital inicial de los
-    backtests, US$ {int(settings.initial_capital)}.
+    ponderación igual, las {settings.top_n} acciones que más subieron en los últimos <em>N</em> meses. Muestra qué habría
+    pasado (backtest) y qué elegiría hoy. Plazo de referencia: {settings.months} meses; capital inicial: US$ {int(settings.initial_capital)}.
   </p>
-  <p class="muted">
-    Es una herramienta de análisis personal y educativa. <strong>No es una recomendación de inversión.</strong>
-  </p>
+  <p class="muted">Herramienta de análisis personal y educativa. <strong>No es una recomendación de inversión.</strong></p>
 
   <h2>Qué muestra cada sección</h2>
-  <dl>
-    {#each sections as s (s.tab)}
-      <dt>{s.tab}</dt>
-      <dd>{s.text}</dd>
+  <div class="grid">
+    {#each sections as [tab, text] (tab)}
+      <div class="item"><strong>{tab}</strong><p>{text}</p></div>
     {/each}
-  </dl>
+  </div>
 
-  <h2>Los filtros</h2>
+  <h2>Filtros</h2>
   <p>
-    <strong>Universo</strong>: el índice completo, solo las empresas large-cap + mega-cap (capitalización de al
-    menos US$ 10.000 millones) o solo las mega-cap (al menos US$ 200.000 millones).
-    <strong>Período</strong>: cuántos años hacia atrás se simulan (los backtests terminan en la fecha de la corrida).
+    <strong>Universo:</strong> índice completo, large-cap + mega-cap (desde US$ 10.000 M) o mega-cap (desde US$ 200.000 M).
+    <strong>Período:</strong> años simulados hacia atrás, hasta la fecha de la corrida.
   </p>
 
-  <h2>De dónde salen los datos</h2>
+  <h2>Datos</h2>
   <dl>
     {#each sources as [name, text] (name)}
       <dt>{name}</dt>
@@ -84,34 +59,42 @@
 
   <h2>Qué incluyen los resultados</h2>
   <p>
-    Los backtests cobran una comisión de {share(settings.commission ?? 0, 2)} por lado al armar la cartera y por las
-    posiciones que cambian en cada rebalanceo. Los resultados de cada plazo se miden con todas las fechas de arranque
-    posibles, y se informa el resultado típico (la mediana) y no un solo número.
+    Comisión de {share(settings.commission ?? 0, 2)} por lado al armar la cartera y por las posiciones que cambian en cada
+    rebalanceo. Cada plazo se mide con todas las fechas de arranque posibles y se informa la mediana.
   </p>
-  <p>Límites que conviene tener presentes al leer los números:</p>
-  <ul>
-    {#each limits as text}
-      <li>{text}</li>
-    {/each}
-  </ul>
+  <details open>
+    <summary>Límites a tener presentes</summary>
+    <ul>
+      {#each limits as text}
+        <li>{text}</li>
+      {/each}
+    </ul>
+  </details>
 
   <h2>Cómo se actualiza</h2>
   <p>
-    Los datos se generan fuera de la página, al ejecutar <code>python run_pipeline.py</code> en la carpeta
-    <code>backend</code>. La fecha de «Corrida» que aparece arriba es la de la última vez que se hizo; para refrescar,
-    se vuelve a ejecutar y se recarga la página.
+    Ejecutar <code>python run_pipeline.py</code> en <code>backend</code> y recargar la página. La fecha de «Corrida» es la
+    de la última ejecución.
   </p>
 </div>
 
 <style>
-  .about { max-width: 860px; }
+  .about { max-width: 960px; }
   .about h2:first-child { margin-top: 16px; }
-  p { margin: 8px 0; }
-  dl { margin: 8px 0; display: grid; grid-template-columns: max-content 1fr; gap: 8px 20px; }
+  p { margin: 6px 0; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--space-2); margin: var(--space-2) 0; }
+  .item {
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px var(--space-3);
+    box-shadow: var(--shadow); font-size: .85rem;
+  }
+  .item strong { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  .item p { margin: 4px 0 0; }
+  dl { margin: 8px 0; display: grid; grid-template-columns: max-content 1fr; gap: 6px 20px; }
   dt { font-weight: 600; }
   dd { margin: 0; color: var(--muted); }
+  summary { cursor: pointer; font-weight: 600; }
   ul { margin: 4px 0 8px; padding-left: 20px; color: var(--muted); }
-  li { margin: 4px 0; }
+  li { margin: 3px 0; }
   code { background: var(--card); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; font-size: .85em; }
   @media (max-width: 640px) {
     dl { grid-template-columns: 1fr; gap: 2px; }

@@ -87,7 +87,7 @@
 <h2>Historial de selecciones (calendario base)</h2>
 <Range period={{ ...universe, start_date: base.start_date, end_date: base.end_date }} first={base.first_rebalance} />
 <p class="sub">
-  Capital = valor al momento de entrar a los tickers de esa fila. Gan/Pérd = acumulado vs. el capital inicial.
+  Capital = valor al entrar a los tickers de la fila. Gan/Pérd = acumulado vs. capital inicial.
 </p>
 <div class="wrap">
   <table>
@@ -127,8 +127,7 @@
 <h2>Calendarios de arranque posibles ({term.calendars.length})</h2>
 <Range period={universe} />
 <p class="sub">
-  El mismo plazo de {term.months} meses empezando en cada uno de los {term.months} meses posibles. Muestra cuánto
-  del resultado depende de la fecha de arranque.
+  El mismo plazo de {term.months} meses empezando en cada uno de los {term.months} meses posibles.
 </p>
 <div class="wrap">
   <table>

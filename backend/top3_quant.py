@@ -1,4 +1,4 @@
-"""Modelo base: score de momentum, de salud financiera y técnico de las acciones del S&P 500, su promedio como score final y
+"""Modelo por score: score de momentum, de salud financiera y técnico de las acciones del S&P 500, su promedio como score final y
 Markowitz sobre las mejores. No hace backtest. Los parámetros están en config.toml [quant]. Guarda todo en SQLite y
 actualiza el JSON del frontend.
 """

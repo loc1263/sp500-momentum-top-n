@@ -5,7 +5,7 @@ subieron en los últimos N meses. El proyecto la evalúa con datos históricos (
 depende del mes de arranque y muestra los resultados en una aplicación web local.
 
 Además calcula el **Top actual** (qué acciones lidera hoy el ranking, con sus suplentes, los cambios respecto de la
-corrida anterior y el próximo rebalanceo) un **ranking de momentum de los ETFs de Vanguard** ajustado por riesgo y un **modelo base** que da a cada acción del S&P 500 un score de momentum, otro de salud financiera y otro técnico, su promedio como score final, y Markowitz sobre las mejores.
+corrida anterior y el próximo rebalanceo) un **ranking de momentum de los ETFs de Vanguard** ajustado por riesgo y un **modelo por score** que da a cada acción del S&P 500 un score de momentum, otro de salud financiera y otro técnico, su promedio como score final, y Markowitz sobre las mejores.
 
 > **Aviso:** es una herramienta de análisis, no una recomendación de inversión. El backtest cobra solo una comisión
 > de 0,05% por lado, sin impuestos, y tiene sesgos de datos (ver [Limitaciones](#limitaciones)).
@@ -18,7 +18,7 @@ corrida anterior y el próximo rebalanceo) un **ranking de momentum de los ETFs 
 | **Comparación N-0 vs. N-1**: el modelo de siempre frente a una variante *skip-month* que ignora el último mes al rankear, plazo por plazo | Pestaña *N-0 vs N-1* |
 | **Top actual**: las N acciones con mejor retorno hoy, cuatro suplentes, qué entra y qué sale, próximo rebalanceo | Pestaña *Top actual* |
 | **ETFs de Vanguard**: ranking por retorno ajustado por riesgo, con tendencia y caída máxima | Pestaña *ETFs Vanguard* |
-| **Modelo base**: score de momentum, de salud financiera y técnico de las ~500 acciones del S&P 500, su promedio como score final y Markowitz sobre las 10 mejores (sin backtest) | Pestaña *Modelo base* |
+| **Modelo por score**: score de momentum, de salud financiera y técnico de las ~500 acciones del S&P 500, su promedio como score final y Markowitz sobre las 10 mejores (sin backtest) | Pestaña *Modelo por score* |
 | **About**: qué se muestra en cada pestaña, de dónde salen los datos, qué incluyen los resultados y sus límites | Pestaña *About* |
 | Reportes por consola y en HTML, con códigos de error estables (`TOP-BKT-003`, ...) | `backend/output/` y [Códigos de error](#códigos-de-error-y-aviso) |
 
@@ -60,7 +60,7 @@ python run_pipeline.py
 cd ..
 ```
 
-Este comando descarga los precios, ejecuta el backtest y el Top actual, calcula el ranking de ETFs y el modelo base y deja todo
+Este comando descarga los precios, ejecuta el backtest y el Top actual, calcula el ranking de ETFs y el modelo por score y deja todo
 guardado en una base SQLite local (`backend/data/`). **La primera vez tarda varios minutos** (descarga más de diez
 años de precios); las siguientes ejecuciones son mucho más rápidas porque solo actualizan lo que falta.
 
@@ -201,7 +201,7 @@ python run_pipeline.py --years 7        # backtest de un único período
 python run_pipeline.py --skip-backtest  # solo Top actual + JSON (rápido)
 python run_pipeline.py --skip-actual    # omite el Top actual
 python run_pipeline.py --skip-etf       # omite el ranking de ETFs
-python run_pipeline.py --skip-quant     # omite el modelo base
+python run_pipeline.py --skip-quant     # omite el modelo por score
 ```
 
 Cada paso corre en su propio proceso y, si uno falla, se corta. Al final imprime el tiempo de cada paso.
@@ -281,7 +281,7 @@ Además del Top, muestra:
 
 Correr el script dos veces con los mismos datos reemplaza el resultado en lugar de duplicarlo.
 
-### Modelo base (`top3_quant.py`)
+### Modelo por score (`top3_quant.py`)
 
 Un score para cada acción del S&P 500 actual, **sin backtest**: es una foto de hoy. Corre dentro del pipeline, deja todo en
 SQLite (`quant_runs`, `fundamentals` y `ohlcv`) y en el JSON que lee la web.
@@ -472,7 +472,7 @@ errores** agrupado por código, con cuántas veces ocurrió, un ejemplo y qué h
 | `etf_scores` | Ranking de ETFs de Vanguard por corrida (fecha de datos, posición, score, volatilidad, caída máxima, distancia a la SMA200, retornos por plazo) |
 | `fundamentals` | Últimos datos financieros descargados de cada empresa (JSON) y su fecha |
 | `ohlcv` | Apertura, máximo, mínimo, cierre ajustado y volumen diarios del último año y medio de cada acción del S&P 500 (para los indicadores técnicos) |
-| `quant_runs` | Último resultado del modelo base (JSON: ranking y Markowitz) |
+| `quant_runs` | Último resultado del modelo por score (JSON: ranking y Markowitz) |
 | `actual_picks`, `actual_alternates` | Resultados de `top3_actual.py` (fecha de datos, plazo, ticker, retorno, precio, capitalización) y sus suplentes |
 
 ### Limpieza de la base
@@ -513,7 +513,7 @@ Formato: `TOP-<ÁREA>-<NNN>`.
 | `BKT` | Backtest |
 | `ACT` | Top actual |
 | `ETF` | Ranking de ETFs de Vanguard |
-| `QNT` | Modelo base |
+| `QNT` | Modelo por score |
 | `SYS` | Avisos de Python capturados (pandas, yfinance...) |
 
 **Aviso** = se continúa con lo que haya. **Error** = la operación se corta o falla.
@@ -552,14 +552,14 @@ Para buscar en el log: `grep TOP-BKT backend/log/top3_backtest.log`.
 | `TOP-ETF-004` | Error | Ningún ETF se pudo rankear | Descarga más historia o reduce [etf] horizons_months. |
 | `TOP-ETF-005` | Aviso | La referencia libre de riesgo no está disponible | El score se calcula sin restarla (los ETFs casi sin riesgo quedan arriba). Revisa [etf] risk_free_ticker: debe estar en la lista y tener historia completa. |
 | `TOP-ETF-006` | Aviso | No se pudo actualizar la lista de ETFs de Vanguard | Se usa la lista guardada en el CSV. Revisa la conexión; si Vanguard cambió el formato de su respuesta hay que ajustar `top3/vanguard.py`. Con `--no-update` o `[etf] update_list = false` no se intenta. |
-| `TOP-QNT-001` | Error | No hay acciones suficientes para el ranking del modelo base | Descarga más historia (`--no-cache`) o baja `[quant] top_n`; revisa también `TOP-DAT-005`. |
+| `TOP-QNT-001` | Error | No hay acciones suficientes para el ranking del modelo por score | Descarga más historia (`--no-cache`) o baja `[quant] top_n`; revisa también `TOP-DAT-005`. |
 | `TOP-SYS-001` | Aviso | Aviso de Python (pandas, yfinance u otra librería) | El mensaje original trae el archivo y la línea. |
 
 ## Estructura y desarrollo
 
 ```
 start.ps1 / start.sh  # levantan backend + frontend (Windows / macOS y Linux)
-backend/              # Python: backtest, Top actual, ranking de ETFs, modelo base y base SQLite
+backend/              # Python: backtest, Top actual, ranking de ETFs, modelo por score y base SQLite
   config.toml         # configuración
   vanguard_etfs.csv   # lista de ETFs de Vanguard (se mantiene a mano)
   top3/               # paquete con la lógica; los scripts de la raíz de backend/ son solo la línea de comandos
@@ -572,8 +572,8 @@ frontend/             # Aplicación web en Svelte 5 + Vite
 | `backend/top3_backtest.py` | Backtest Point-in-Time, comparación de plazos y sensibilidad al calendario de arranque |
 | `backend/top3_actual.py` | Top N de hoy: las acciones del S&P 500 con mejor retorno en el plazo configurado |
 | `backend/top3_etf.py` | Ranking de momentum ajustado por riesgo de los ETFs de Vanguard (sin backtest) |
-| `backend/top3_quant.py` | Modelo base: scores de momentum, de salud financiera y técnico del S&P 500 y Markowitz sobre las mejores (sin backtest) |
-| `backend/run_pipeline.py` | Pipeline completo: backtest (todos los períodos y universos) + Top actual de cada universo + ETFs + modelo base + JSON del frontend |
+| `backend/top3_quant.py` | Modelo por score: scores de momentum, de salud financiera y técnico del S&P 500 y Markowitz sobre las mejores (sin backtest) |
+| `backend/run_pipeline.py` | Pipeline completo: backtest (todos los períodos y universos) + Top actual de cada universo + ETFs + modelo por score + JSON del frontend |
 | `backend/prune_db.py` | Limpia a mano las corridas viejas de SQLite (se hace sola en cada backtest) |
 | `backend/export_frontend.py` | Escribe ese mismo JSON en `frontend/public/data/report.json` (lo hacen solos los scripts al terminar) |
 | `backend/data/`, `backend/output/`, `backend/log/` | Base SQLite, reportes HTML y logs; se crean solos |
@@ -598,7 +598,7 @@ frontend/             # Aplicación web en Svelte 5 + Vite
 | `rotation.py` | Top actual: cambios contra la corrida anterior y próximo rebalanceo |
 | `workflow.py`, `actual.py` | Flujos completos: backtest normal / sweep / offsets y Top actual |
 | `report_data.py` | JSON del frontend |
-| `quant/` | Modelo base: `momentum.py` (momentum 12-1 y 6-1 y su score), `fundamentals.py` (datos financieros de Yahoo y score de salud), `ohlcv.py` (precios y volumen diarios) y `technical.py` (indicadores y score técnico), `markowitz.py` (covarianza, retornos esperados y carteras) y `run.py` (orquestación y guardado) |
+| `quant/` | Modelo por score: `momentum.py` (momentum 12-1 y 6-1 y su score), `fundamentals.py` (datos financieros de Yahoo y score de salud), `ohlcv.py` (precios y volumen diarios) y `technical.py` (indicadores y score técnico), `markowitz.py` (covarianza, retornos esperados y carteras) y `run.py` (orquestación y guardado) |
 | `errors.py` | Catálogo de códigos de error y aviso |
 
 **Frontend (`frontend/src/`)**
@@ -611,7 +611,7 @@ frontend/             # Aplicación web en Svelte 5 + Vite
 | `lib/SweepView.svelte` | Comparación de plazos y sensibilidad al arranque |
 | `lib/CompareView.svelte` | Modelo de siempre (N-0) frente al skip-month (N-1), plazo por plazo y por mitades del período |
 | `lib/EtfView.svelte` | Ranking de ETFs de Vanguard |
-| `lib/QuantView.svelte` | Modelo base: top 10 con Markowitz y ranking completo con filtros |
+| `lib/QuantView.svelte` | Modelo por score: top 10 con Markowitz y ranking completo con filtros |
 | `lib/AboutView.svelte` | Pestaña About: qué se muestra en la aplicación, fuentes de datos y límites |
 | `lib/Chart.svelte`, `Range.svelte`, `TickerLink.svelte`, `Glossary.svelte` | Componentes compartidos |
 | `lib/Bunny.svelte` | Detalle decorativo: un conejo que pasea por el pie de la pantalla, se aleja del cursor y saluda al hacer clic (se desactiva con «reducir movimiento» del sistema) |

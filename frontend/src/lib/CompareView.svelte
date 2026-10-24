@@ -1,10 +1,14 @@
 <script>
   import Chart from './Chart.svelte';
   import Range from './Range.svelte';
-  import { pct, int, sign } from './format.js';
+  import Pager from './Pager.svelte';
+  import { pct, int, sign, slicePage } from './format.js';
 
   /** `universe` = modelo de siempre (N-0), `skip` = modelo skip-month (N-1); ambos con la forma { terms, ... }. */
   let { universe, skip, settings } = $props();
+
+  let rowsPage = $state(0);
+  let halfPage = $state(0);
 
   const baseOf = (t) => t.calendars.find((c) => c.offset === 0) ?? t.calendars[0];
 
@@ -71,9 +75,8 @@
       <strong class={sign(avgDiff)}>{pct(avgDiff, 1)} anual</strong>.
     </p>
     <p class="line muted">
-      N-0 ordena por lo que subió cada acción en los últimos N meses hasta hoy. N-1 ignora el último mes (mide los N
-      meses que terminan un mes antes) para no premiar rebotes de corto plazo. Ambos modelos usan los mismos datos,
-      fechas de arranque y universo.
+      N-0 ordena por lo que subió cada acción en los últimos N meses; N-1 ignora el último mes para no premiar rebotes
+      de corto plazo. Mismos datos, arranques y universo.
     </p>
   </div>
 
@@ -100,7 +103,7 @@
         </tr>
       </thead>
       <tbody>
-        {#each rows as r (r.months)}
+        {#each slicePage(rows, rowsPage) as r (r.months)}
           <tr>
             <td><strong>{r.months} meses</strong></td>
             <td class="r typical {sign(r.a.summary.cagr_median)}">{pct(r.a.summary.cagr_median)}</td>
@@ -118,18 +121,18 @@
       </tbody>
     </table>
   </div>
+  <Pager total={rows.length} bind:page={rowsPage} />
   <p class="sub note">
-    «Típico» = mediana de todas las fechas de arranque posibles. US$ {int(settings.initial_capital)} iniciales.
-    «Gana» compara el resultado típico anual: una diferencia pequeña no es evidencia de que un modelo sea mejor.
+    «Típico» = mediana de los arranques posibles, con US$ {int(settings.initial_capital)} iniciales. Una diferencia
+    pequeña en «Gana» no prueba que un modelo sea mejor.
   </p>
 
   {#if halvesAvailable}
     <h2>¿Se sostiene en el tiempo?</h2>
     <Range period={universe} {first} />
     <p class="sub">
-      El período se parte en dos mitades (corte cerca del {split}) y se mide cada modelo en cada una, con la
-      mediana de las fechas de arranque. Si un modelo gana en las dos mitades, su ventaja no depende de un solo tramo
-      del mercado.
+      El período se parte en dos mitades (corte cerca del {split}). Si un modelo gana en las dos, su ventaja no depende de
+      un solo tramo del mercado.
       <strong>
         N-0 gana las dos mitades en {steadyBase} de {rows.length} plazos, N-1 en {steadySkip};
         el resto se reparte.
@@ -152,7 +155,7 @@
           </tr>
         </thead>
         <tbody>
-          {#each halfRows as r (r.months)}
+          {#each slicePage(halfRows, halfPage) as r (r.months)}
             <tr>
               <td><strong>{r.months} meses</strong></td>
               <td class="r {sign(r.ha?.first)}">{pct(r.ha?.first)}</td>
@@ -169,8 +172,9 @@
         </tbody>
       </table>
     </div>
+    <Pager total={halfRows.length} bind:page={halfPage} />
     <p class="sub note">
-      Con períodos cortos cada mitad tiene muy pocos rebalanceos: conviene mirar los de 6 años o más.
+      Con períodos cortos cada mitad tiene pocos rebalanceos: mejor mirar 6 años o más.
     </p>
   {/if}
 

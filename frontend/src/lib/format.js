@@ -13,3 +13,5 @@ export const billions = (v) => (v == null ? 'n/d' : n0.format(v / 1e9));
 export const int = (v) => n0.format(v);
 /** Clase CSS según el signo (verde / rojo). */
 export const sign = (v) => (v > 0 ? 'pos' : v < 0 ? 'neg' : '');
+export const PAGE_SIZE = 12;
+export const slicePage = (rows, page) => rows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);

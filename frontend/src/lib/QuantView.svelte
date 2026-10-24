@@ -1,8 +1,11 @@
 <script>
   import TickerLink from './TickerLink.svelte';
-  import { pct, share, sign } from './format.js';
+  import Pager from './Pager.svelte';
+  import { pct, share, sign, slicePage } from './format.js';
 
   let { quant } = $props();
+
+  let page = $state(0);
 
   const s = $derived(quant.settings);
   const cov = $derived(quant.coverage);
@@ -110,6 +113,12 @@
       return direction * (typeof x === 'string' ? x.localeCompare(y, 'es') : x - y);
     });
   });
+  // Al cambiar el orden o los filtros se vuelve a la primera página
+  $effect(() => {
+    [sortKey, descending, query, sector, view];
+    page = 0;
+  });
+
   function setView(next) {
     view = next;
     if (![...FIXED, ...views[next].columns].some((c) => c.key === sortKey)) {
@@ -143,38 +152,61 @@
 </div>
 
 <h2>Cómo se calcula</h2>
-<ul class="how">
-  <li>
-    <strong>Momentum</strong>: posición de cada acción (100 = la mejor) según el promedio de su ranking en el retorno de
-    12 y de 6 meses, sin contar el último mes.
-  </li>
-  <li>
-    <strong>Salud financiera</strong>: posición de cada empresa según cuatro grupos de indicadores de sus últimos datos
-    publicados: rentabilidad (ROE, ROA, márgenes), solvencia (deuda/patrimonio, deuda neta/EBITDA, caja/deuda), liquidez
-    (liquidez corriente y prueba ácida) y generación de caja (flujo libre y operativo sobre ventas y sobre la capitalización, conversión de la utilidad en caja, flujo
-    operativo sobre la deuda y años con flujo libre positivo; este grupo pesa el doble: una empresa que genera caja de forma
-    sostenida es más confiable). Los bancos y
-    aseguradoras solo se miden con rentabilidad: en el detalle «Salud» se ve el score de cada grupo y cuántos de los 4 se pudieron medir.
-  </li>
-  <li>
-    <strong>Técnico</strong>: posición de cada acción según cuatro grupos de indicadores calculados con sus precios y
-    volumen: tendencia (medias móviles exponenciales de 20, 50 y 200 ruedas y ADX), impulso (MACD, RSI, estocástico y
-    bandas de Bollinger), volumen (OBV y MFI) y posición en el rango de 52 semanas. El RSI, el estocástico y el MFI
-    premian la zona alcista y penalizan la sobrecompra. El detalle «Técnico» muestra el score de cada grupo.
-  </li>
-  <li>
-    <strong>Score final</strong>: el promedio de los tres{#if s.weights && new Set(s.weights).size > 1} (con los pesos {s.weights.join(' / ')} de
-    momentum, salud y técnico){/if}. Sobre las {s.top_n} primeras se calcula Markowitz.
-  </li>
-</ul>
+<div class="how">
+  <div class="step">
+    <strong>Momentum</strong>
+    <p>Cuánto subió cada acción en 12 y 6 meses, sin contar el último. 100 = la mejor.</p>
+  </div>
+  <div class="step">
+    <strong>Salud financiera</strong>
+    <p>Calidad de los últimos balances publicados, en 4 grupos de indicadores.</p>
+    <details>
+      <summary>Ver grupos</summary>
+      <ul>
+        <li><b>Rentabilidad:</b> ROE, ROA y márgenes.</li>
+        <li><b>Solvencia:</b> deuda/patrimonio, deuda neta/EBITDA, caja/deuda.</li>
+        <li><b>Liquidez:</b> liquidez corriente y prueba ácida.</li>
+        <li><b>Caja:</b> flujo libre y operativo, conversión de utilidad y años con flujo positivo. Pesa el doble.</li>
+      </ul>
+      <p>Bancos y aseguradoras se miden solo con rentabilidad.</p>
+    </details>
+  </div>
+  <div class="step">
+    <strong>Técnico</strong>
+    <p>Estado del precio y el volumen, en 4 grupos de indicadores.</p>
+    <details>
+      <summary>Ver grupos</summary>
+      <ul>
+        <li><b>Tendencia:</b> medias móviles de 20, 50 y 200 ruedas, ADX.</li>
+        <li><b>Impulso:</b> MACD, RSI, estocástico, Bollinger.</li>
+        <li><b>Volumen:</b> OBV y MFI.</li>
+        <li><b>Posición:</b> lugar en el rango de 52 semanas.</li>
+      </ul>
+      <p>RSI, estocástico y MFI premian la zona alcista y penalizan la sobrecompra.</p>
+    </details>
+  </div>
+  <div class="step">
+    <strong>Score final</strong>
+    <p>
+      Promedio de los tres{#if s.weights && new Set(s.weights).size > 1} (pesos {s.weights.join(' / ')}){/if}.
+      Markowitz se calcula sobre las {s.top_n} primeras.
+    </p>
+  </div>
+</div>
 
 <h2>Las {s.top_n} mejores y sus pesos (Markowitz)</h2>
 <p class="sub">
-  Tres carteras sin posiciones cortas y con un máximo de {share(s.w_max, 0)} por acción y de {share(mk.sector_max, 0)} por sector. El retorno esperado de cada acción
-  es su retorno de los últimos 12 meses con un peso de {share(s.mu_shrink, 0)}, y el resto, un retorno de largo plazo de
-  {share(s.prior, 0)} (tasa libre de riesgo más prima de mercado): el retorno pasado de una acción es muy ruidoso. La
-  covarianza sale de los últimos 12 meses (Ledoit-Wolf). Los pesos dependen sobre todo del riesgo; tómalos como orientativos.
+  Tres carteras sin posiciones cortas, con máximo de {share(s.w_max, 0)} por acción y {share(mk.sector_max, 0)} por sector.
+  Los pesos dependen sobre todo del riesgo: tómalos como orientativos.
 </p>
+<details class="more">
+  <summary>Cómo se estiman retorno y riesgo</summary>
+  <p>
+    El retorno esperado de cada acción mezcla su retorno de 12 meses (peso {share(s.mu_shrink, 0)}) con un retorno de
+    largo plazo de {share(s.prior, 0)} (tasa libre de riesgo más prima de mercado), porque el retorno pasado es muy
+    ruidoso. La covarianza sale de los últimos 12 meses (Ledoit-Wolf).
+  </p>
+</details>
 {#if mk.sector_relaxed}
   <p class="best">
     Con los sectores de estas {s.top_n} acciones no se puede invertir todo con un máximo de {share(s.sector_max, 0)} por
@@ -250,13 +282,18 @@
 
 <h2>Ranking del S&amp;P 500</h2>
 <p class="sub">
-  Las {cov.ranked} acciones con los tres scores, de mejor a peor score final. ROE, márgenes, flujo de caja libre (FCF) sobre ventas,
-  capitalización y utilidad, y la distancia a las EMA en porcentaje; «Deuda/Patr.» es deuda sobre patrimonio y «Años FCF+»,
-  la parte de los últimos 4 años con flujo libre positivo.
+  Las {cov.ranked} acciones con los tres scores, de mejor a peor score final.
   {#if cov.excluded.sin_momentum.length}Sin un año de precios (no tienen momentum): {cov.excluded.sin_momentum.join(', ')}.{/if}
   {#if cov.excluded.sin_datos_financieros.length}Sin datos financieros: {cov.excluded.sin_datos_financieros.join(', ')}.{/if}
   {#if cov.excluded.sin_datos_tecnicos.length}Sin datos técnicos: {cov.excluded.sin_datos_tecnicos.join(', ')}.{/if}
 </p>
+<details class="more">
+  <summary>Qué significan las columnas</summary>
+  <p>
+    Porcentajes: ROE, márgenes, flujo de caja libre (FCF) sobre ventas, capitalización y utilidad, y distancia a las
+    EMA. «Deuda/Patr.» = deuda sobre patrimonio; «Años FCF+» = parte de los últimos 4 años con flujo libre positivo.
+  </p>
+</details>
 <div class="filters">
   <label>
     Buscar
@@ -291,7 +328,7 @@
       </tr>
     </thead>
     <tbody>
-      {#each rows as r (r.ticker)}
+      {#each slicePage(rows, page) as r (r.ticker)}
         <tr class:top={r.rank <= s.top_n}>
           {#each columns as column (column.key)}
             {#if column.key === 'ticker'}
@@ -308,10 +345,19 @@
     </tbody>
   </table>
 </div>
+<Pager total={rows.length} bind:page />
 
 <style>
-  .how { margin: var(--space-2) 0; padding-left: 20px; max-width: 90ch; }
-  .how li { margin: 6px 0; }
+  .how { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: var(--space-2); margin: var(--space-3) 0; }
+  .step {
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px var(--space-3);
+    box-shadow: var(--shadow); font-size: .85rem;
+  }
+  .step strong { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  .step p { margin: 4px 0 0; }
+  .step summary { cursor: pointer; color: var(--accent); margin-top: 6px; font-size: .8rem; }
+  .step ul { margin: 6px 0 0; padding-left: 16px; }
+  .step li { margin: 2px 0; }
   .filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 12px 0; }
   label { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: .9rem; }
   input[type='search'] {

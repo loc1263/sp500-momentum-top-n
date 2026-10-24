@@ -1,4 +1,4 @@
-"""Modelo base: score de momentum + score de salud financiera de las acciones del S&P 500, su promedio como score final y
+"""Modelo por score: score de momentum + score de salud financiera de las acciones del S&P 500, su promedio como score final y
 Markowitz sobre las mejores.
 
 No hay backtest: es una foto de hoy (precios hasta la última rueda y últimos datos financieros publicados)."""
@@ -133,4 +133,4 @@ def save(cfg: dict, payload: dict) -> None:
         conn.commit()
     finally:
         conn.close()
-    log.info("Modelo base guardado en SQLite (tabla quant_runs)")
+    log.info("Modelo por score guardado en SQLite (tabla quant_runs)")

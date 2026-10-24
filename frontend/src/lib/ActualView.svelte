@@ -1,6 +1,7 @@
 <script>
   import TickerLink from './TickerLink.svelte';
-  import { pct, share, usd, billions, sign } from './format.js';
+  import Pager from './Pager.svelte';
+  import { pct, share, usd, billions, sign, slicePage } from './format.js';
 
   let { actual } = $props();
 
@@ -10,6 +11,9 @@
     d.setUTCMonth(d.getUTCMonth() - actual.months);
     return d.toISOString().slice(0, 10);
   });
+  let pickPage = $state(0);
+  let altPage = $state(0);
+  let trackPage = $state(0);
   const tracking = $derived(actual.tracking ?? []);
   const list = (tickers) => (tickers.length ? tickers.join(', ') : '-');
 </script>
@@ -34,8 +38,7 @@
   <span class="muted">({actual.months} meses)</span>
 </p>
 <p class="sub">
-  Ponderación igual; se rebalancea cada {actual.months} meses. Cap. aprox. = precio × acciones en circulación
-  actuales, informativa.
+  Ponderación igual, rebalanceo cada {actual.months} meses. Cap. aprox. = precio × acciones en circulación hoy.
 </p>
 {#if actual.changes}
   <p class="changes">
@@ -60,7 +63,7 @@
       </tr>
     </thead>
     <tbody>
-      {#each actual.picks as p (p.ticker)}
+      {#each slicePage(actual.picks, pickPage) as p (p.ticker)}
         <tr>
           <td>{p.rank}</td>
           <td><TickerLink ticker={p.ticker} /></td>
@@ -73,11 +76,12 @@
     </tbody>
   </table>
 </div>
+<Pager total={actual.picks.length} bind:page={pickPage} />
 
 {#if actual.alternates?.length}
   <h2>Suplentes</h2>
   <p class="sub">
-    Puestos siguientes al top {actual.picks.length}, como reemplazo posible de alguna acción del top. Mismo plazo y criterio de ranking.
+    Los puestos siguientes al top {actual.picks.length}, como reemplazo posible.
   </p>
   <div class="wrap">
     <table>
@@ -88,7 +92,7 @@
         </tr>
       </thead>
       <tbody>
-        {#each actual.alternates as p (p.ticker)}
+        {#each slicePage(actual.alternates, altPage) as p (p.ticker)}
           <tr>
             <td>{p.rank}</td>
             <td><TickerLink ticker={p.ticker} /></td>
@@ -100,14 +104,14 @@
       </tbody>
     </table>
   </div>
+  <Pager total={actual.alternates.length} bind:page={altPage} />
 {/if}
 
 {#if tracking.length}
   <h2>Seguimiento de selecciones anteriores</h2>
   <p class="sub">
-    Cómo le fue a cada selección guardada, con el precio de cuando se eligió y el último precio disponible. Una
-    selección dura {actual.months} meses; pasado ese plazo figura como cerrada y se mide hasta su fin. Es una
-    verificación fuera del backtest, pero con pocas selecciones guardadas no prueba nada todavía.
+    Cómo le fue a cada selección guardada desde que se eligió. Dura {actual.months} meses; después figura como cerrada.
+    Con pocas selecciones guardadas todavía no prueba nada.
   </p>
   <div class="wrap">
     <table>
@@ -118,7 +122,7 @@
         </tr>
       </thead>
       <tbody>
-        {#each tracking as t (t.as_of)}
+        {#each slicePage(tracking, trackPage) as t (t.as_of)}
           <tr>
             <td>{t.as_of}</td>
             <td>{t.until}</td>
@@ -134,4 +138,5 @@
       </tbody>
     </table>
   </div>
+  <Pager total={tracking.length} bind:page={trackPage} />
 {/if}

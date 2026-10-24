@@ -50,8 +50,8 @@ def test_pipeline_steps(cfg):
     steps = run_pipeline.build_steps(cfg, Args)
     names = [n for n, _ in steps]
     assert names[0] == "Tests" and names[-1] == "Exportar JSON del frontend"
-    assert len(steps) == 1 + 1 + 3 + 1 + 1 + 1                 # tests + backtest + 3 universos + ETFs + modelo base + export
-    assert "Ranking de ETFs de Vanguard" in names and any(n.startswith("Modelo base") for n in names)
+    assert len(steps) == 1 + 1 + 3 + 1 + 1 + 1                 # tests + backtest + 3 universos + ETFs + modelo por score + export
+    assert "Ranking de ETFs de Vanguard" in names and any(n.startswith("Modelo por score") for n in names)
     backtest = steps[1][1]
     assert "--sweep" in backtest and "--no-cache" in backtest and backtest[backtest.index("--years") + 1] == "7"
     actual_cmds = [c for n, c in steps if n.startswith("Top actual")]

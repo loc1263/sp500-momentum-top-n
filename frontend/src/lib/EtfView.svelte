@@ -1,6 +1,7 @@
 <script>
   import TickerLink from './TickerLink.svelte';
-  import { pct, share, sign } from './format.js';
+  import Pager from './Pager.svelte';
+  import { pct, share, sign, slicePage } from './format.js';
 
   let { etf } = $props();
 
@@ -8,6 +9,7 @@
   let descending = $state(false);
   let category = $state('');
   let bullishOnly = $state(false);
+  let page = $state(0);
 
   const columns = $derived([
     { key: 'rank', label: '#' },
@@ -33,6 +35,12 @@
       if (x == null || y == null) return (x == null) - (y == null); // sin dato, al final
       return direction * (typeof x === 'string' ? x.localeCompare(y, 'es') : x - y);
     });
+  });
+
+  // Al cambiar el orden o los filtros se vuelve a la primera página
+  $effect(() => {
+    [sortKey, descending, category, bullishOnly];
+    page = 0;
   });
 
   function sortBy(column) {
@@ -65,9 +73,8 @@
 
 <h2>Ranking global de ETFs de Vanguard</h2>
 <p class="sub">
-  Score = promedio, entre los plazos, del retorno{etf.risk_free ? ` (exceso sobre ${etf.risk_free})` : ''} dividido
-  por la volatilidad anual escalada al plazo: cuánto subió por unidad de riesgo. «vs SMA200» es la distancia del
-  precio a su media de 200 ruedas (positivo = tendencia alcista). Los {etf.top_n} primeros están resaltados.
+  Score = retorno{etf.risk_free ? ` (exceso sobre ${etf.risk_free})` : ''} sobre volatilidad, promediado entre plazos.
+  «vs SMA200» = distancia a la media de 200 ruedas. Los {etf.top_n} primeros están resaltados.
 </p>
 
 {#if etf.changes}
@@ -113,7 +120,7 @@
       </tr>
     </thead>
     <tbody>
-      {#each rows as row (row.ticker)}
+      {#each slicePage(rows, page) as row (row.ticker)}
         <tr class:top={row.rank <= etf.top_n}>
           <td>{row.rank}</td>
           <td><TickerLink ticker={row.ticker} kind="etf" /></td>
@@ -133,6 +140,7 @@
     </tbody>
   </table>
 </div>
+<Pager total={rows.length} bind:page />
 
 <style>
   .filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 12px 0; }

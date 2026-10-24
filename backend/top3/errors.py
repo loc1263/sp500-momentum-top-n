@@ -108,7 +108,7 @@ ETF_LIST_UPDATE = _code("TOP-ETF-006", "warning", "No se pudo actualizar la list
                         "respuesta hay que ajustar top3/vanguard.py. Con --no-update o [etf] update_list = false no se intenta.")
 
 # Modelo cuantitativo
-QNT_NO_SIGNAL = _code("TOP-QNT-001", "error", "No hay acciones suficientes para el ranking del modelo base",
+QNT_NO_SIGNAL = _code("TOP-QNT-001", "error", "No hay acciones suficientes para el ranking del modelo por score",
                       "Descarga más historia (--no-cache) o baja [quant] top_n; revisa también TOP-DAT-005.")
 
 # Sistema

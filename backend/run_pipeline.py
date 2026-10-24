@@ -1,5 +1,5 @@
 """Pipeline completo: tests (opcional) -> backtest de todos los períodos y universos -> Top actual de cada universo
--> ranking de ETFs -> modelo base -> JSON del frontend.
+-> ranking de ETFs -> modelo por score -> JSON del frontend.
 
     python run_pipeline.py                 # todo, con caché y descarga incremental de precios
     python run_pipeline.py --no-cache      # descarga todo de nuevo
@@ -55,7 +55,7 @@ def build_steps(cfg, args):
     if not args.skip_etf:
         steps.append(("Ranking de ETFs de Vanguard", [py, "top3_etf.py", *config]))
     if not args.skip_quant:
-        steps.append(("Modelo base: scores de momentum, salud y técnico, y Markowitz",
+        steps.append(("Modelo por score: scores de momentum, salud y técnico, y Markowitz",
                       [py, "top3_quant.py", *config, *cache()]))
     steps.append(("Exportar JSON del frontend", [py, "export_frontend.py", *config]))
     return steps
@@ -70,7 +70,7 @@ def main():
     ap.add_argument("--tests", action="store_true", help="Corre los tests antes del pipeline")
     ap.add_argument("--skip-backtest", action="store_true", help="Omite el backtest")
     ap.add_argument("--skip-actual", action="store_true", help="Omite el Top actual")
-    ap.add_argument("--skip-quant", action="store_true", help="Omite el modelo base (scores y Markowitz)")
+    ap.add_argument("--skip-quant", action="store_true", help="Omite el modelo por score (scores y Markowitz)")
     ap.add_argument("--skip-etf", action="store_true", help="Omite el ranking de ETFs de Vanguard")
     args = ap.parse_args()
 

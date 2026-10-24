@@ -1,9 +1,12 @@
 <script>
   import Chart from './Chart.svelte';
   import Range from './Range.svelte';
-  import { pct, int, sign } from './format.js';
+  import Pager from './Pager.svelte';
+  import { pct, int, sign, slicePage } from './format.js';
 
   let { universe, settings } = $props();
+
+  let page = $state(0);
 
   const baseOf = (t) => t.calendars.find((c) => c.offset === 0) ?? t.calendars[0];
   const rows = $derived(
@@ -39,9 +42,8 @@
     <p class="line">
       <strong>Plazo más consistente: {steady.months} meses.</strong>
       Su resultado típico es <strong class={sign(steady.s.cagr_median)}>{pct(steady.s.cagr_median)} anual</strong>
-      (mediana de {steady.s.calendars} fechas de arranque posibles). Según el mes en que se hubiera empezado, US$
-      {int(settings.initial_capital)} terminaron entre US$ {int(steady.s.capital_min)} y US$
-      {int(steady.s.capital_max)}.
+      (mediana de {steady.s.calendars} arranques posibles). US$ {int(settings.initial_capital)} terminaron entre
+      US$ {int(steady.s.capital_min)} y US$ {int(steady.s.capital_max)}.
     </p>
     {#if sameWinner}
       <p class="line muted">
@@ -50,9 +52,8 @@
     {:else}
       <p class="line">
         <strong>Mayor resultado con un solo arranque: {topBase.months} meses</strong>
-        (US$ {int(topBase.base.final_capital)} con el arranque base). Pero empezando en otros meses terminó entre
-        US$ {int(topBase.s.capital_min)} y US$ {int(topBase.s.capital_max)}: es su mejor caso, no lo que se puede
-        esperar normalmente.
+        (US$ {int(topBase.base.final_capital)} con el arranque base), pero con otros arranques terminó entre
+        US$ {int(topBase.s.capital_min)} y US$ {int(topBase.s.capital_max)}: es su mejor caso, no lo esperable.
       </p>
     {/if}
   </div>
@@ -61,8 +62,7 @@
 <h2>Comparación de plazos</h2>
 <Range period={universe} {first} />
 <p class="sub">
-  Ordenado de más a menos consistente (por resultado típico). «Resultado típico» y «peor / mejor arranque» usan todas
-  las fechas de arranque posibles; «un solo arranque» es solo el primer mes del período.
+  De más a menos consistente. Típico, peor y mejor usan todos los arranques posibles; «un solo arranque» es el primer mes.
 </p>
 <div class="wrap">
   <table>
@@ -83,7 +83,7 @@
       </tr>
     </thead>
     <tbody>
-      {#each rows as r (r.months)}
+      {#each slicePage(rows, page) as r (r.months)}
         <tr>
           <td>
             <strong>{r.months} meses</strong>
@@ -103,16 +103,17 @@
     </tbody>
   </table>
 </div>
+<Pager total={rows.length} bind:page />
 <p class="sub note">
-  «Anual» = rendimiento anual promedio (CAGR). «Capital final» = en qué se convirtieron US$
-  {int(settings.initial_capital)}. Fechas de arranque probadas: {rows.map((r) => `${r.months}m: ${r.s.calendars}`).join(' · ')}.
+  «Anual» = CAGR. «Capital final» = en qué se convirtieron US$ {int(settings.initial_capital)}.
+  Arranques probados: {rows.map((r) => `${r.months}m: ${r.s.calendars}`).join(' · ')}.
 </p>
 
 <h2>¿Cuánto depende del mes de arranque?</h2>
 <Range period={universe} {first} />
 <p class="sub">
-  Cada barra va del peor al mejor rendimiento anual según el mes en que se hubiera empezado; la marca vertical es el
-  resultado típico y el círculo es el arranque base. Barra corta = resultado más estable.
+  Cada barra va del peor al mejor rendimiento anual; la marca es el resultado típico y el círculo, el arranque base.
+  Barra corta = más estable.
 </p>
 <div class="ranges">
   {#each rows as r (r.months)}
