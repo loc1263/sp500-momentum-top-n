@@ -100,7 +100,7 @@ def write_html(output_dir: str, prefix: str, title: str, subtitle: str, body: st
 <body><main>
 <h1>{html.escape(title)}</h1><p class="sub">{html.escape(subtitle)}</p>
 {body}
-<footer>Generado el {datetime.now():%Y-%m-%d %H:%M}. Backtest sin comisiones ni impuestos, ponderación igual entre los tickers seleccionados.
+<footer>Generado el {datetime.now():%Y-%m-%d %H:%M}. Backtest con la comisión por lado de [backtest] commission, sin impuestos, ponderación igual entre los tickers seleccionados.
 Excluye tickers sin datos en Yahoo (sesgo de supervivencia).</footer>
 </main></body></html>"""
     path.write_text(doc, encoding="utf-8")

@@ -48,6 +48,10 @@ class Context:
         return float(self.cfg["backtest"]["initial_capital"])
 
     @property
+    def commission(self) -> float:
+        return float(self.cfg["backtest"]["commission"])
+
+    @property
     def top_n(self) -> int:
         return int(self.cfg["backtest"]["top_n"])
 
@@ -133,7 +137,7 @@ def run_calendars(ctx: Context, months: int, universe: Universe | None = None,
         try:
             result = run_backtest(ctx.constituents, ctx.matrix, start, ctx.end_date, ctx.lookback_days(months),
                                   f"{months}MS", ctx.initial_capital, ctx.top_n, universe, skipped,
-                                  ctx.skip_days(skip_months))
+                                  ctx.skip_days(skip_months), ctx.commission)
         except Exception as e:
             log.warning(E.BKT_TERM_FAILED.msg("Plazo %d meses, desfase %d sin resultado: %s"), months, offset, e)
             continue

@@ -20,6 +20,7 @@
 | | `months` | `4` | Plazo del backtest normal: ranking de N meses y rebalanceo cada N meses |
 | | `initial_capital` | `1000` | Capital inicial (US$) |
 | | `top_n` | `4` | Cantidad de acciones por rebalanceo |
+| | `commission` | `0.0005` | Comisión por lado (0,05%): se cobra al armar la cartera y por las posiciones que cambian en cada rebalanceo |
 | | `alternates` | `4` | Suplentes del Top actual: puestos posteriores al `top_n` que se muestran como reemplazo posible (`0` = ninguno) |
 | | `trading_days_per_month` | `21` | Ruedas por mes para convertir meses en ventana de ranking |
 | `[tickers.aliases]` | `VIEJO = "NUEVO"` | 6 renombres | Unifica símbolos renombrados |

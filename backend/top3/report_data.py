@@ -157,6 +157,7 @@ def build_report(conn: sqlite3.Connection, cfg: dict) -> dict:
         "generated_at": datetime.now().isoformat(timespec="seconds"),
         "run_date": run_day,
         "settings": {"top_n": int(bt["top_n"]), "months": int(bt["months"]), "initial_capital": initial_capital,
+                     "commission": float(bt["commission"]),
                      "terms": [int(m) for m in cfg["simulation"]["months"]],
                      "backtest_years": float(bt["backtest_years"]),
                      "min_cap_billions": float(cfg["universe"]["min_cap_billions"]),

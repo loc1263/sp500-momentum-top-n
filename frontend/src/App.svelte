@@ -6,6 +6,7 @@
   import EtfView from './lib/EtfView.svelte';
   import Glossary from './lib/Glossary.svelte';
   import Bunny from './lib/Bunny.svelte';
+  import { share } from './lib/format.js';
 
   const tabs = [
     { id: 'actual', label: 'Top actual' },
@@ -153,7 +154,7 @@
     {/if}
 
     <footer>
-      Generado el {report.generated_at.replace('T', ' ')}. Backtest sin comisiones ni impuestos, ponderación igual
+      Generado el {report.generated_at.replace('T', ' ')}. Backtest con comisión de {share(report.settings.commission ?? 0, 2)} por lado, sin impuestos, ponderación igual
       entre los tickers seleccionados. Excluye tickers sin datos en Yahoo (sesgo de supervivencia). Herramienta de
       análisis, no una recomendación de inversión.
     </footer>

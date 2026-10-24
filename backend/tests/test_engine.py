@@ -99,3 +99,32 @@ def test_rank_returns_skip_days_ignores_the_most_recent_rows_and_needs_more_hist
     assert list(rank_returns(prices, tickers, idx[-1], 9).index) == ["UP_LATE", "UP_EARLY"]
     assert list(rank_returns(prices, tickers, idx[-1], 9, skip_days=10).index) == ["UP_EARLY", "UP_LATE"]
     assert rank_returns(prices, tickers, idx[-1], 25, skip_days=10) is None      # 26 + 10 ruedas > 30
+
+
+def test_commission_charges_entry_and_only_the_positions_that_change():
+    prices = make_prices()
+    args = (FakeConstituents(list(prices.columns)), prices, "2023-09-01", "2024-12-31", 63, "3MS", 1000, 3)
+    free = run_backtest(*args)
+    paid = run_backtest(*args, commission=0.001)
+    # la selección no cambia nunca: solo se paga la compra inicial
+    assert len({tuple(h["picks"]) for h in free.history}) == 1
+    assert paid.final_capital == pytest.approx(free.final_capital * (1 - 0.001))
+
+
+def test_commission_is_charged_twice_on_the_names_that_rotate(monkeypatch):
+    prices = make_prices()
+    rotating = iter([["T11", "T10", "T09"], ["T08", "T07", "T06"], ["T08", "T07", "T05"]])
+    import top3.engine as engine
+    real = engine.rank_returns
+
+    def fake(*a, **k):
+        ranked = real(*a, **k)
+        return ranked.loc[next(rotating)] if ranked is not None else None
+    monkeypatch.setattr(engine, "rank_returns", fake)
+    args = (FakeConstituents(list(prices.columns)), prices, "2023-09-01", "2024-03-01", 63, "3MS", 1000, 3)
+    free = run_backtest(*args)
+    rotating = iter([["T11", "T10", "T09"], ["T08", "T07", "T06"], ["T08", "T07", "T05"]])
+    paid = run_backtest(*args, commission=0.01)
+    # entrada 1%; rotación total (3 de 3) 2%; rotación de 1 de 3 = 2% / 3
+    expected = (1 - 0.01) * (1 - 0.02) * (1 - 0.02 / 3)
+    assert paid.final_capital == pytest.approx(free.final_capital * expected)

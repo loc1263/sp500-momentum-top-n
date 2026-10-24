@@ -44,6 +44,8 @@ months = 4
 initial_capital = 15000
 # Cantidad de tickers a comprar en cada rebalanceo (ponderación igual)
 top_n = 4
+# Comisión por lado (0.0005 = 0,05%): se cobra al comprar y al vender lo que cambia en cada rebalanceo
+commission = 0.0005
 # Suplentes del Top actual: cuántos puestos posteriores al top_n se muestran como reemplazo posible (0 = ninguno)
 alternates = 4
 # Ruedas bursátiles por mes (para convertir meses en ventana de ranking)

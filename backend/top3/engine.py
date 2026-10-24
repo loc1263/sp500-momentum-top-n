@@ -88,13 +88,16 @@ def hold_return(prices: "pd.DataFrame | PriceMatrix", tickers: list[str], start:
 
 def run_backtest(constituents: Constituents, prices: "pd.DataFrame | PriceMatrix", start_date, end_date, lookback_days: int,
                  freq: str, initial_capital: float, top_n: int, universe: Universe | None = None,
-                 skipped: Skipped | None = None, skip_days: int = 0) -> BacktestResult:
+                 skipped: Skipped | None = None, skip_days: int = 0, commission: float = 0.0) -> BacktestResult:
     """Simula la estrategia entre `start_date` y `end_date`, rebalanceando según `freq` (p. ej. "4MS").
 
     `prices` puede ser un `PriceMatrix` ya armado: quien corre muchas simulaciones sobre los mismos precios (los
     calendarios y plazos de un período) lo arma una vez y lo reutiliza.
     Con `skip_days` el ranking ignora las últimas `skip_days` ruedas (modelo skip-month); las compras y el
     rendimiento siguen contándose desde la fecha de rebalanceo.
+    `commission` es la comisión por lado (0.0005 = 0,05%). Se cobra al armar la cartera (compra de todo el capital)
+    y en cada rebalanceo por las posiciones que cambian (se vende la que sale y se compra la que entra). No cobra
+    el reequilibrio de pesos de las que se mantienen ni la venta final.
     Lanza RuntimeError si no hubo ningún rebalanceo (fechas fuera del histórico, universo demasiado chico...).
     """
     prices = PriceMatrix.of(prices)
@@ -135,7 +138,13 @@ def run_backtest(constituents: Constituents, prices: "pd.DataFrame | PriceMatrix
             else:
                 log.warning(E.BKT_NO_PRICES.msg("Período %s→%s: sin datos para %s"), entry_date.date(), when.date(), held)
 
-        held, entry_date = picks.index.tolist(), when
+        new_held = picks.index.tolist()
+        if held is None:
+            capital *= 1 - commission                      # compra inicial de toda la cartera
+        else:
+            changed = len(set(new_held) - set(held)) / len(new_held)
+            capital *= 1 - 2 * commission * changed        # vende lo que sale y compra lo que entra
+        held, entry_date = new_held, when
         equity.append(capital)
         dates.append(when)
         log.info("%s → Top %d: %s | Capital: $%s", when.date(), top_n, held, f"{capital:,.0f}")

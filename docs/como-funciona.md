@@ -51,7 +51,9 @@ cuando no se filtra.
   grandes entren al universo antes de tiempo. Pesa mucho más en mega-cap que en large-cap.
 - **Pocas decisiones.** Con 5 años hay entre 5 y 20 rebalanceos por plazo, y el resultado depende de unas
   pocas rachas. Por eso se informa la mediana y el rango de los calendarios y no un solo número.
-- **Sin costos.** No incluye comisiones, impuestos ni deslizamiento (slippage), y asume ponderación igual.
+- **Costos parciales.** Cobra una comisión por lado (`[backtest] commission`, 0,05%) al armar la cartera y por las
+  posiciones que cambian en cada rebalanceo; no incluye impuestos ni deslizamiento (slippage), no cobra el
+  reequilibrio de pesos de las que se mantienen y asume ponderación igual.
 - **Dependencias externas.** Los datos vienen de Yahoo Finance, un repositorio de GitHub y Wikipedia. Si
   cambia el formato de alguna fuente, el script avisa en el log y sigue con lo que tenga guardado en SQLite.
 - Un rebalanceo se decide con precios hasta esa misma fecha de rebalanceo.

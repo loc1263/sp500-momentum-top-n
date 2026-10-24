@@ -7,8 +7,8 @@ depende del mes de arranque y muestra los resultados en una aplicación web loca
 Además calcula el **Top actual** (qué acciones lidera hoy el ranking, con sus suplentes, los cambios respecto de la
 corrida anterior y el próximo rebalanceo) y un **ranking de momentum de los ETFs de Vanguard** ajustado por riesgo.
 
-> **Aviso:** es una herramienta de análisis, no una recomendación de inversión. El backtest no incluye comisiones
-> ni impuestos y tiene sesgos de datos (ver [Limitaciones](docs/como-funciona.md#limitaciones)).
+> **Aviso:** es una herramienta de análisis, no una recomendación de inversión. El backtest cobra solo una comisión
+> de 0,05% por lado, sin impuestos, y tiene sesgos de datos (ver [Limitaciones](docs/como-funciona.md#limitaciones)).
 
 ## Qué incluye
 
