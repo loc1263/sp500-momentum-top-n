@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from top3.config import Config, load_config
+from top3.config import load_config
 from top3.logs import log, setup_logging
 
 REPO_CONFIG = Path(__file__).resolve().parent.parent / "config.toml"
@@ -274,7 +274,7 @@ def test_pipeline_step_titles_and_summary_are_green(monkeypatch):
     import sys
 
     import pytest
-    import run_pipeline
+    from top3.cli import pipeline as run_pipeline
     from top3 import logs
 
     class Terminal(io.StringIO):

@@ -1,13 +1,18 @@
 """Flujos del backtest: arman las corridas, las muestran por consola y escriben los reportes HTML."""
 import sqlite3
+from dataclasses import dataclass, replace
+from datetime import date, timedelta
 from pathlib import Path
 
 import pandas as pd
 
 from . import console, errors as E, html_report, universe as universes
 from .analysis import SKIP_MONTHS, Context, attach_market_caps, run_calendars, run_terms
-from .config import DataConfig
+from .config import BacktestConfig, Config, DataConfig
+from .constituents import Constituents, ensure_constituents
+from .db import open_db
 from .logs import log
+from .prices import ensure_prices, load_prices
 from .shares import ensure_shares
 from .universe import Universe
 
@@ -67,3 +72,96 @@ def run_offsets(ctx: Context, universe: Universe | None) -> Path:
     terms = run_terms(ctx, universe)
     console.print_offsets(ctx, terms, _min_cap(universe))
     return html_report.offsets_report(ctx, terms, _min_cap(universe))
+
+
+@dataclass
+class BacktestJob:
+    """Qué pidió el usuario para el backtest (los flags de la línea de comandos)."""
+
+    sweep: bool = False
+    offsets: bool = False
+    months: int | None = None
+    years: float | None = None
+    large_cap: bool = False
+    min_cap_billions: float | None = None
+    use_cache: bool = True
+
+
+def resolve_periods(bt_cfg: BacktestConfig, end_date: pd.Timestamp,
+                    years: float | None) -> list[tuple[float, pd.Timestamp]]:
+    """Períodos a evaluar como (años, fecha de inicio). Un start_date explícito en el config es un único período."""
+    if bt_cfg.start_date:
+        start = pd.to_datetime(bt_cfg.start_date)
+        return [(round((end_date - start).days / 365.25, 1), start)]
+    years_list = [years] if years else [float(y) for y in bt_cfg.periods_years]
+    return [(y, end_date - pd.DateOffset(years=int(y))) for y in sorted(years_list)]
+
+
+def resolve_levels(job: BacktestJob, cfg: Config) -> list[float]:
+    """Umbrales de capitalización a correr (0 = índice completo)."""
+    explicit = universes.explicit_min_cap(cfg, job.large_cap, job.min_cap_billions)
+    if explicit is not None:
+        return [explicit]
+    if job.sweep:  # --sweep sin filtro explícito: todos los universos configurados
+        return [float(x) for x in cfg.universe.sweep_min_cap_billions]
+    return [0.0]
+
+
+def run_backtest_job(cfg: Config, job: BacktestJob) -> list[Path]:
+    """Actualiza los datos y corre el backtest de cada período; devuelve los reportes HTML generados."""
+    log.info("Caché: %s", "activada (se reutiliza lo descargado hoy)" if job.use_cache
+             else "DESACTIVADA (--no-cache)")
+    bt_cfg = cfg.backtest
+    settings = cfg.data
+
+    today = date.today()
+    history_start = (today - timedelta(days=round(settings.history_years * 365.25))).isoformat()
+    price_end = (today + timedelta(days=1)).isoformat()  # yfinance: end exclusivo
+
+    end_date = pd.to_datetime(bt_cfg.end_date or today)
+    periods = resolve_periods(bt_cfg, end_date, job.years)
+    for years, start_date in periods:
+        if start_date >= end_date:
+            raise SystemExit(E.CFG_BAD_DATES.msg(
+                f"start_date ({start_date.date()}) debe ser anterior a end_date ({end_date.date()})"))
+        log.info("Histórico: %s a %s | Backtest de %g años: %s a %s", history_start, today, years,
+                 start_date.date(), end_date.date())
+        if start_date < pd.to_datetime(history_start):
+            log.warning(E.CFG_SHORT_HISTORY.msg("El inicio del backtest de %g años (%s) es anterior al histórico "
+                                                "descargado (%s); subí [data] history_years"),
+                        years, start_date.date(), history_start)
+
+    conn = open_db(settings.db_path)
+    try:
+        ensure_constituents(conn, settings, job.use_cache)
+        constituents = Constituents(conn, cfg.tickers.aliases)
+        tickers = constituents.all_between(history_start, today)
+        log.info("Tickers únicos que pasaron por el S&P 500 en el histórico: %d", len(tickers))
+
+        ensure_prices(conn, tickers, history_start, price_end, job.use_cache, settings)
+        prices = load_prices(conn)
+
+        levels = resolve_levels(job, cfg)
+        known_shares: dict[str, float] = {}  # acciones en circulación ya bajadas: se reutilizan en toda la corrida
+        build_universe = UniverseBuilder(conn, prices, job.use_cache, settings, known_shares)
+        months = job.months or bt_cfg.months
+
+        reports: list[Path] = []
+        for years, start_date in periods:
+            # Cada período lleva su propio config (años) y sufijo de los HTML (_5y, _10y...)
+            ctx = Context(conn, replace(cfg, backtest=replace(bt_cfg, backtest_years=years)), settings, constituents,
+                          prices, start_date, end_date, job.use_cache, file_suffix=f"_{years:g}y",
+                          known_shares=known_shares)
+            log.info("########## Período: %g años (%s a %s) ##########", years, start_date.date(), end_date.date())
+            for level in levels:
+                universe = build_universe(level)
+                if job.sweep:
+                    log.info("##### Sweep - universo: %s #####", universes.label(level))
+                    reports += run_sweep(ctx, universe)
+                elif job.offsets:
+                    reports.append(run_offsets(ctx, universe))
+                else:
+                    reports.append(run_single(ctx, months, universe))
+    finally:
+        conn.close()
+    return reports

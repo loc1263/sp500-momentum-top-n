@@ -1,24 +1,23 @@
 import pandas as pd
 import pytest
 
-import run_pipeline
-import top3_actual
-import top3_backtest
+from top3.cli import actual as cli_actual, backtest as cli_backtest, pipeline as run_pipeline
 from top3.config import BacktestConfig
+from top3.workflow import resolve_levels, resolve_periods
 
 
 END = pd.Timestamp("2026-10-20")
 
 
 def test_resolve_periods_from_config_sorted():
-    periods = top3_backtest.resolve_periods(BacktestConfig(periods_years=[10, 3, 5]), END, None)
+    periods = resolve_periods(BacktestConfig(periods_years=[10, 3, 5]), END, None)
     assert [y for y, _ in periods] == [3, 5, 10]
     assert periods[0][1] == pd.Timestamp("2023-10-20")
 
 
 def test_resolve_periods_years_flag_and_explicit_start():
-    assert top3_backtest.resolve_periods(BacktestConfig(periods_years=[3, 5]), END, 7)[0][0] == 7
-    (years, start), = top3_backtest.resolve_periods(BacktestConfig(start_date="2020-10-20", periods_years=[3]), END, None)
+    assert resolve_periods(BacktestConfig(periods_years=[3, 5]), END, 7)[0][0] == 7
+    (years, start), = resolve_periods(BacktestConfig(start_date="2020-10-20", periods_years=[3]), END, None)
     assert years == 6.0 and start == pd.Timestamp("2020-10-20")
 
 
@@ -30,16 +29,16 @@ def test_resolve_periods_years_flag_and_explicit_start():
     (["--sweep", "--large-cap"], [10.0]),
 ])
 def test_resolve_levels(argv, expected, cfg):
-    assert top3_backtest.resolve_levels(top3_backtest.parse_args(argv), cfg) == expected
+    assert resolve_levels(cli_backtest.job_from_args(cli_backtest.parse_args(argv)), cfg) == expected
 
 
 def test_backtest_args_defaults():
-    args = top3_backtest.parse_args([])
+    args = cli_backtest.parse_args([])
     assert args.config == "config.toml" and not args.sweep and args.years is None
 
 
 def test_actual_args():
-    args = top3_actual.parse_args(["--months", "6", "--top-n", "3", "--large-cap", "--no-cache"])
+    args = cli_actual.parse_args(["--months", "6", "--top-n", "3", "--large-cap", "--no-cache"])
     assert (args.months, args.top_n, args.large_cap, args.no_cache) == (6, 3, True, True)
 
 

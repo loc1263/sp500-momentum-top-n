@@ -30,6 +30,14 @@ class Universe:
         return [t for t, keep in zip(tickers, ok) if keep]
 
 
+def explicit_min_cap(cfg, large_cap: bool, min_cap_billions: float | None) -> float | None:
+    """Umbral pedido por línea de comandos (--min-cap-billions, o --large-cap = el de [universe] min_cap_billions);
+    None si no se pidió ningún filtro."""
+    if min_cap_billions is not None:
+        return min_cap_billions
+    return cfg.universe.min_cap_billions if large_cap else None
+
+
 def label(min_cap_b: float | None) -> str:
     if not min_cap_b:
         return FULL_INDEX_LABEL

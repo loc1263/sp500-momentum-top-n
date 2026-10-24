@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-import top3_etf
+from top3.cli import etf as top3_etf
 from top3 import etf
 
 ROOT = Path(__file__).resolve().parents[1]
