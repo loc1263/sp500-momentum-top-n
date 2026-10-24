@@ -9,6 +9,7 @@ import yfinance as yf
 from . import errors as E
 from .config import DataConfig
 from .logs import log
+from .repo import cache as store
 
 
 def _fetch_shares(ticker: str) -> tuple[str, float | None]:
@@ -27,7 +28,7 @@ def ensure_shares(conn: sqlite3.Connection, tickers: list[str], use_cache: bool,
     today = date.today().isoformat()
     cutoff = (date.today() - timedelta(days=settings.shares_ttl_days)).isoformat()
     known = known or {}
-    cached = {r[0]: r[1] for r in conn.execute("SELECT ticker, shares FROM shares WHERE fetched >= ?", (cutoff,))}
+    cached = store.fresh_shares(conn, cutoff)
     shares = {t: known[t] if t in known else cached[t]
               for t in tickers if t in known or (use_cache and t in cached)}
     todo = [t for t in tickers if t not in shares]
@@ -37,8 +38,7 @@ def ensure_shares(conn: sqlite3.Connection, tickers: list[str], use_cache: bool,
         for t, value in pool.map(_fetch_shares, todo):
             if value:
                 shares[t] = float(value)
-                conn.execute("INSERT OR REPLACE INTO shares (ticker, shares, fetched) VALUES (?, ?, ?)",
-                             (t, float(value), today))
+                store.save_shares(conn, t, float(value), today)
             else:
                 missing.append(t)
     conn.commit()

@@ -1,12 +1,15 @@
-"""SQLite: esquema, conexión y metadatos de caché."""
-import json
+"""SQLite: conexión, migraciones del esquema y metadatos de caché."""
 import sqlite3
-from datetime import date, datetime, timedelta
+from datetime import date
 from pathlib import Path
 
+from . import errors as E
 from .logs import log
 
-SCHEMA = """
+# Cada migración es (versión, script SQL). La versión aplicada queda en PRAGMA user_version; para cambiar el esquema
+# se agrega una migración al final (nunca se edita una ya publicada) y open_db la aplica sola.
+MIGRATIONS: list[tuple[int, str]] = [
+    (1, """
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
 CREATE TABLE IF NOT EXISTS constituents_history (date TEXT PRIMARY KEY, tickers TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS constituents_current (ticker TEXT PRIMARY KEY);
@@ -49,14 +52,38 @@ CREATE TABLE IF NOT EXISTS quant_runs (run_at TEXT PRIMARY KEY, as_of TEXT, payl
 CREATE INDEX IF NOT EXISTS idx_selections_run ON selections (run_id);
 CREATE INDEX IF NOT EXISTS idx_equity_run ON equity (run_id);
 CREATE INDEX IF NOT EXISTS idx_runs_run_at ON runs (run_at);
-"""
+"""),
+    (2, """
+CREATE INDEX IF NOT EXISTS idx_actual_picks_key ON actual_picks (months, min_cap_billions, as_of);
+CREATE INDEX IF NOT EXISTS idx_actual_alternates_run ON actual_alternates (run_at);
+CREATE INDEX IF NOT EXISTS idx_etf_scores_as_of ON etf_scores (as_of);
+CREATE INDEX IF NOT EXISTS idx_prices_date ON prices (date);
+"""),
+]
+LATEST_VERSION = MIGRATIONS[-1][0]
+
+
+def schema_version(conn: sqlite3.Connection) -> int:
+    return conn.execute("PRAGMA user_version").fetchone()[0]
+
+
+def migrate(conn: sqlite3.Connection) -> None:
+    """Lleva el esquema a la última versión aplicando, en orden, las migraciones que faltan."""
+    current = schema_version(conn)
+    if current > LATEST_VERSION:
+        raise SystemExit(E.DAT_DB_NEWER.msg(f"La base tiene el esquema v{current} y este código llega a v{LATEST_VERSION}."))
+    for version, script in MIGRATIONS:
+        if version > current:
+            conn.executescript(script)
+            conn.execute(f"PRAGMA user_version = {version}")  # PRAGMA no admite parámetros
+            log.debug("Esquema SQLite migrado a v%d", version)
 
 
 def open_db(path: str | Path) -> sqlite3.Connection:
-    """Abre la base (creando carpeta y tablas si faltan)."""
+    """Abre la base (creando carpeta y tablas si faltan) con el esquema al día."""
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path)
-    conn.executescript(SCHEMA)
+    migrate(conn)
     log.debug("SQLite abierta: %s", Path(path).resolve())
     return conn
 
@@ -73,58 +100,3 @@ def set_meta(conn: sqlite3.Connection, key: str, value) -> None:
 def fetched_today(conn: sqlite3.Connection, key: str) -> bool:
     """True si el dato `key` se descargó hoy."""
     return get_meta(conn, key) == date.today().isoformat()
-
-
-def run_key(params: dict) -> tuple | None:
-    """Qué corrida es para el informe: (universo, años del período, plazo, desfase, meses saltados del modelo).
-    None si no es de un sweep. Las corridas anteriores al modelo skip-month cuentan como 0."""
-    if "sweep_months" not in params:
-        return None
-    years = float(params.get("backtest", {}).get("backtest_years", 5))
-    return (float(params.get("min_cap_billions") or 0), years, int(params["sweep_months"]),
-            int(params.get("offset_months", 0)), int(params.get("skip_months", 0)))
-
-
-def prune_runs(conn: sqlite3.Connection, keep_days: int) -> int:
-    """Borra las corridas viejas del backtest y devuelve cuántas.
-
-    Se conservan los últimos `keep_days` días con corridas (contados desde el día más reciente, mínimo 1) y, dentro
-    de ellos, solo la última corrida de cada `run_key` por día: es la única que usa el informe. Las corridas que no
-    son de un sweep se agrupan por sus parámetros exactos. `actual_picks` no se toca (historial del Top actual).
-    """
-    last_day = conn.execute("SELECT MAX(substr(run_at, 1, 10)) FROM runs").fetchone()[0]
-    if not last_day:
-        return 0
-    cutoff = (datetime.fromisoformat(last_day) - timedelta(days=max(keep_days, 1) - 1)).date().isoformat()
-    latest: dict[tuple, int] = {}
-    doomed: list[int] = []
-    for run_id, day, params in conn.execute("SELECT id, substr(run_at, 1, 10), params FROM runs ORDER BY id"):
-        if day < cutoff:
-            doomed.append(run_id)
-            continue
-        try:
-            parsed = json.loads(params)
-        except (TypeError, ValueError):
-            parsed = {}
-        group = (day, (run_key(parsed) if isinstance(parsed, dict) else None) or params)
-        if group in latest:
-            doomed.append(latest[group])  # la anterior del mismo día queda reemplazada
-        latest[group] = run_id
-    for table, column in (("selections", "run_id"), ("equity", "run_id"), ("runs", "id")):
-        conn.executemany(f"DELETE FROM {table} WHERE {column} = ?", [(i,) for i in doomed])
-    conn.commit()
-    if doomed:
-        log.info("Limpieza: %d corridas viejas borradas (se conservan %d días, hasta %s)", len(doomed), keep_days,
-                 last_day)
-    return len(doomed)
-
-
-def maybe_prune_runs(conn: sqlite3.Connection, keep_days: int, force: bool = False) -> int:
-    """Borra las corridas viejas en cada llamada (es rápido). Compactar el archivo (VACUUM) es lo caro: se hace
-    como mucho una vez por día, salvo `force`."""
-    n = prune_runs(conn, keep_days)
-    if n and (force or not fetched_today(conn, "runs_vacuumed")):
-        set_meta(conn, "runs_vacuumed", date.today().isoformat())
-        conn.commit()
-        conn.execute("VACUUM")  # fuera de transacción; devuelve el espacio al disco
-    return n

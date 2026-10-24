@@ -4,7 +4,6 @@ Para cada ETF y cada plazo de `[etf] horizons_months` se calcula el retorno del 
 plazo (anualizada y llevada a la escala del plazo): cuánto subió por cada unidad de riesgo que corrió. El score es el
 promedio de esos cocientes. Es un ranking global de la lista de `[etf] csv`.
 """
-import json
 import math
 import sqlite3
 from datetime import date, datetime, timedelta
@@ -17,6 +16,7 @@ from .actual import download_recent
 from .config import Config
 from .db import open_db
 from .logs import log
+from .repo import etf as store
 
 TRADING_DAYS_YEAR = 252
 SMA_DAYS = 200  # la tendencia se mide contra la media simple de 200 ruedas
@@ -112,15 +112,10 @@ def table_rows(scores: pd.DataFrame, universe: pd.DataFrame, horizons: list[int]
 
 def save_scores(conn: sqlite3.Connection, as_of: str, scores: pd.DataFrame, horizons: list[int]) -> None:
     """Guarda el ranking; repetir la corrida con los mismos datos lo reemplaza."""
-    run_at = datetime.now().isoformat(timespec="seconds")
-    conn.execute("DELETE FROM etf_scores WHERE as_of = ?", (as_of,))
-    conn.executemany(
-        "INSERT INTO etf_scores (run_at, as_of, rank, ticker, score, vol, max_dd, sma_dist, returns) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        [(run_at, as_of, int(r["rank"]), t, float(r["score"]), float(r["vol"]), float(r["max_dd"]),
-          float(r["sma_dist"]), json.dumps({str(h): float(r[f"ret_{h}"]) for h in horizons}))
-         for t, r in scores.iterrows()])
-    conn.commit()
+    store.replace_scores(conn, as_of, [
+        (int(r["rank"]), t, float(r["score"]), float(r["vol"]), float(r["max_dd"]), float(r["sma_dist"]),
+         {str(h): float(r[f"ret_{h}"]) for h in horizons})
+        for t, r in scores.iterrows()])
 
 
 def describe_changes(previous_as_of: str | None, changes: dict[str, list[str]], top_n: int) -> str:
@@ -192,7 +187,7 @@ def run_etf(cfg: Config, as_of: str | None = None, top_n: int | None = None, csv
     else:
         conn = open_db(cfg.data.db_path)
         try:
-            prev_as_of, prev_top = rotation.previous_etf_top(conn, data_day, top_n)
+            prev_as_of, prev_top = store.previous_top(conn, data_day, top_n)
             save_scores(conn, data_day, scores, horizons)
         finally:
             conn.close()

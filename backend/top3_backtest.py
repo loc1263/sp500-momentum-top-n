@@ -15,7 +15,8 @@ from top3.analysis import Context
 from top3.config import BacktestConfig, Config, load_config
 from top3.console import configure_console
 from top3.constituents import Constituents, ensure_constituents
-from top3.db import maybe_prune_runs, open_db
+from top3.db import open_db
+from top3.repo.runs import maybe_prune_runs
 from top3.logs import log, log_config, run_cli, setup_logging
 from top3.prices import ensure_prices, load_prices
 from top3.report_data import export_report

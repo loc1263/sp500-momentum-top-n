@@ -12,6 +12,7 @@ from . import errors as E
 from .config import DataConfig
 from .db import fetched_today, set_meta
 from .logs import log
+from .repo import constituents as store
 
 
 def parse_tickers(tickers_str) -> list[str]:
@@ -43,8 +44,7 @@ def download_historical_constituents(conn: sqlite3.Connection, settings: DataCon
 
     rows = [(pd.to_datetime(d).strftime("%Y-%m-%d"), ",".join(parse_tickers(t)))
             for d, t in zip(df[date_col], df[tick_col])]
-    conn.execute("DELETE FROM constituents_history")
-    conn.executemany("INSERT OR REPLACE INTO constituents_history (date, tickers) VALUES (?, ?)", rows)
+    store.replace_history(conn, rows)
     set_meta(conn, "constituents_history_fetched", date.today().isoformat())
     conn.commit()
     log.info("Listas históricas guardadas: %s a %s (%d filas)", rows[0][0], rows[-1][0], len(rows))
@@ -54,8 +54,7 @@ def download_current_constituents(conn: sqlite3.Connection, settings: DataConfig
     log.info("Obteniendo lista actual del S&P 500 (Wikipedia)...")
     table = pd.read_html(StringIO(_get_text(settings.wikipedia_url, settings)))[0]
     tickers = table["Symbol"].str.replace(".", "-", regex=False).tolist()
-    conn.execute("DELETE FROM constituents_current")
-    conn.executemany("INSERT OR IGNORE INTO constituents_current (ticker) VALUES (?)", [(t,) for t in tickers])
+    store.replace_current(conn, tickers)
     set_meta(conn, "constituents_current_fetched", date.today().isoformat())
     conn.commit()
     log.info("Lista actual guardada: %d tickers", len(tickers))
@@ -82,8 +81,7 @@ def download_index_changes(conn: sqlite3.Connection, settings: DataConfig) -> No
 
     rows = [(r.date.strftime("%Y-%m-%d"), norm(r.added), norm(r.removed), None if pd.isna(r.reason) else str(r.reason))
             for r in table.itertuples()]
-    conn.execute("DELETE FROM index_changes")
-    conn.executemany("INSERT INTO index_changes (date, added, removed, reason) VALUES (?, ?, ?, ?)", rows)
+    store.replace_changes(conn, rows)
     set_meta(conn, "index_changes_fetched", date.today().isoformat())
     conn.commit()
     log.info("Cambios del índice guardados: %d filas (%s a %s)", len(rows),
@@ -117,10 +115,10 @@ class Constituents:
     def __init__(self, conn: sqlite3.Connection, aliases: dict[str, str] | None = None):
         # aliases: símbolo viejo -> símbolo actual en Yahoo (renombres de empresas)
         self.aliases = aliases or {}
-        rows = conn.execute("SELECT date, tickers FROM constituents_history ORDER BY date").fetchall()
+        rows = store.history(conn)
         self.dates = [r[0] for r in rows]
         self.lists = [self._canon(r[1].split(",")) if r[1] else [] for r in rows]
-        self.current = self._canon(r[0] for r in conn.execute("SELECT ticker FROM constituents_current").fetchall())
+        self.current = self._canon(store.current(conn))
         self._apply_changes(conn)
         log.debug("Constituents: %d filas históricas (%s a %s), %d actuales",
                   len(self.dates), self.dates[0] if self.dates else None,
@@ -135,8 +133,7 @@ class Constituents:
         if not self.dates:
             return
         csv_last = self.dates[-1]
-        changes = conn.execute(
-            "SELECT date, added, removed FROM index_changes WHERE date > ? ORDER BY date", (csv_last,)).fetchall()
+        changes = store.changes_after(conn, csv_last)
         if not changes:
             log.info("Composición: el CSV llega a %s y no hay cambios posteriores en Wikipedia", csv_last)
             return

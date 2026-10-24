@@ -12,6 +12,7 @@ from .db import fetched_today, get_meta, open_db
 from .engine import rank_returns
 from .logs import log
 from .prices import fetch_prices
+from .repo import constituents as constituents_store, picks as store, prices as prices_store
 from .shares import ensure_shares
 from .universe import Universe
 
@@ -26,7 +27,7 @@ def get_current_tickers(conn: sqlite3.Connection, aliases: dict[str, str], use_c
             log.exception(E.NET_CURRENT_LIST.msg("No se pudo descargar la lista actual; se usa la guardada en SQLite"))
     else:
         log.info("Lista actual del S&P 500: usando caché SQLite (descargada hoy)")
-    tickers = [r[0] for r in conn.execute("SELECT ticker FROM constituents_current")]
+    tickers = constituents_store.current(conn)
     if not tickers:
         raise SystemExit(E.DAT_NO_CURRENT.msg("No hay lista actual del S&P 500 (ni descargada ni en SQLite)."))
     tickers = list(dict.fromkeys(aliases.get(t, t) for t in tickers))
@@ -47,9 +48,7 @@ def get_prices(conn: sqlite3.Connection, tickers: list[str], start: str, end: st
     frames = []
     cached_start = get_meta(conn, "prices_start")
     if use_cache and fetched_today(conn, "prices_fetched") and cached_start and cached_start <= start:
-        df = pd.read_sql("SELECT date, ticker, close FROM prices WHERE date >= ?", conn,
-                         params=(start,), parse_dates=["date"])
-        stored = df.pivot(index="date", columns="ticker", values="close").sort_index()
+        stored = prices_store.matrix_since(conn, start)
         stored = stored[[t for t in tickers if t in stored.columns]]
         log.info("Precios: %d tickers desde la caché SQLite (hasta %s)", stored.shape[1],
                  stored.index.max().date() if len(stored) else None)
@@ -120,28 +119,22 @@ def run_actual(cfg: Config, months: int, top_n: int, min_cap_b: float | None, us
         for rank, (ticker, ret) in enumerate(ranked.items(), 1):
             price = float(window[ticker].iloc[-1])
             cap = price * shares[ticker] if ticker in shares else None
-            rows.append((run_at, as_of.isoformat(), months, min_cap_b, rank, ticker, float(ret), price, cap))
+            rows.append(store.Pick(rank, ticker, float(ret), price, cap))
         rows, alt_rows = rows[:top_n], rows[top_n:]
-        previous_as_of, previous = rotation.previous_picks(conn, as_of.isoformat(), months, min_cap_b)
-        # Repetir la corrida con los mismos datos reemplaza la anterior en vez de duplicar filas
-        conn.execute("DELETE FROM actual_picks WHERE as_of = ? AND months = ? AND COALESCE(min_cap_billions, 0) = ?",
-                     (as_of.isoformat(), months, min_cap_b or 0))
-        conn.executemany("INSERT INTO actual_picks VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", rows)
-        conn.execute("DELETE FROM actual_alternates WHERE as_of = ? AND months = ? "
-                     "AND COALESCE(min_cap_billions, 0) = ?", (as_of.isoformat(), months, min_cap_b or 0))
-        conn.executemany("INSERT INTO actual_alternates VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", alt_rows)
-        conn.commit()
+        previous_as_of, previous = store.previous_picks(conn, as_of.isoformat(), months, min_cap_b)
+        store.replace_picks(conn, run_at, as_of.isoformat(), months, min_cap_b, rows, alt_rows)
         log.info("Resultado guardado en SQLite (tabla actual_picks)")
-        notes = rotation.describe(previous_as_of, rotation.diff_picks(previous, [r[5] for r in rows]),
-                                  rotation.anchor_date(conn, months, min_cap_b), months, today)
+        notes = rotation.describe(previous_as_of, rotation.diff_picks(previous, [p.ticker for p in rows]),
+                                  store.anchor_date(conn, months, min_cap_b), months, today)
     finally:
         conn.close()
 
     weight = 100 / len(rows)
     headers = ["#", "Ticker", f"Retorno {months} meses", "Cap. aprox. (US$ B)", "Precio (US$)", "Peso"]
 
-    def fmt(r, w):
-        return [str(r[4]), r[5], f"{r[6] * 100:+.1f}%", f"{r[8] / 1e9:,.0f}" if r[8] else "n/d", f"{r[7]:,.2f}", w]
+    def fmt(p, w):
+        return [str(p.rank), p.ticker, f"{p.return_lookback * 100:+.1f}%",
+                f"{p.market_cap / 1e9:,.0f}" if p.market_cap else "n/d", f"{p.price:,.2f}", w]
 
     table = [fmt(r, f"{weight:.1f}%") for r in rows]
     alternates = [fmt(r, "-") for r in alt_rows]

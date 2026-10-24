@@ -2,7 +2,6 @@
 Markowitz sobre las mejores.
 
 No hay backtest: es una foto de hoy (precios hasta la última rueda y últimos datos financieros publicados)."""
-import json
 import math
 from datetime import date, datetime, timedelta
 
@@ -15,6 +14,7 @@ from ..constituents import Constituents, ensure_constituents
 from ..db import open_db
 from ..logs import log
 from ..prices import ensure_prices, load_prices
+from ..repo import quant as store
 from . import fundamentals as FU, markowitz as MK, momentum as MO, ohlcv as OH, technical as TE
 
 
@@ -127,10 +127,7 @@ def save(cfg: Config, payload: dict) -> None:
     """Guarda solo el último resultado."""
     conn = open_db(cfg.data.db_path)
     try:
-        conn.execute("DELETE FROM quant_runs")
-        conn.execute("INSERT INTO quant_runs (run_at, as_of, payload) VALUES (?, ?, ?)",
-                     (payload["generated_at"], payload["as_of"], json.dumps(payload, ensure_ascii=False)))
-        conn.commit()
+        store.save_latest(conn, payload["generated_at"], payload["as_of"], payload)
     finally:
         conn.close()
     log.info("Modelo por score guardado en SQLite (tabla quant_runs)")

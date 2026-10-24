@@ -1,7 +1,7 @@
 """Precios ajustados: descarga completa e incremental a SQLite y carga como matriz fecha x ticker."""
 import sqlite3
 import time
-from datetime import date, timedelta
+from datetime import date
 
 import pandas as pd
 import yfinance as yf
@@ -10,6 +10,7 @@ from . import errors as E, yahoo
 from .config import DataConfig
 from .db import fetched_today, get_meta, set_meta
 from .logs import log
+from .repo import prices as store
 
 PRICE_COLUMNS = ["ticker", "date", "close"]
 RATE_LIMIT_RETRIES = 3   # reintentos de los tickers que Yahoo rechazó por rate limit
@@ -75,44 +76,21 @@ def fetch_prices(tickers: list[str], start: str, end: str, batch_size: int, retr
     return prices, sin_datos
 
 
-def _save_prices(conn: sqlite3.Connection, long: pd.DataFrame) -> None:
-    conn.executemany("INSERT OR REPLACE INTO prices (ticker, date, close) VALUES (?, ?, ?)",
-                     list(zip(long["ticker"], long["date"], long["close"])))
-    conn.commit()
-
-
-def known_no_data(conn: sqlite3.Connection, ttl_days: int) -> set[str]:
-    """Tickers que Yahoo dijo hace menos de `ttl_days` días que no existen o están dados de baja."""
-    if ttl_days <= 0:
-        return set()
-    cutoff = (date.today() - timedelta(days=ttl_days)).isoformat()
-    return {r[0] for r in conn.execute("SELECT ticker FROM no_data_tickers WHERE checked > ?", (cutoff,))}
-
-
-def remember_no_data(conn: sqlite3.Connection, gone: set[str], long: pd.DataFrame) -> None:
-    """Anota los tickers sin datos de esta descarga y olvida los que ahora sí tienen."""
-    today = date.today().isoformat()
-    conn.executemany("INSERT OR REPLACE INTO no_data_tickers (ticker, checked) VALUES (?, ?)",
-                     [(t, today) for t in sorted(gone)])
-    conn.executemany("DELETE FROM no_data_tickers WHERE ticker = ?", [(t,) for t in long["ticker"].unique()])
-
-
 def download_prices(conn: sqlite3.Connection, tickers: list[str], start: str, end: str,
                     settings: DataConfig) -> None:
     """Descarga completa: baja precios ajustados de todos los tickers y reemplaza lo guardado."""
-    skip = known_no_data(conn, settings.no_data_ttl_days) & set(tickers)
+    skip = store.known_no_data(conn, settings.no_data_ttl_days) & set(tickers)
     if skip:
         log.info("Precios: %d tickers sin datos en Yahoo (consultados hace menos de %d días) no se vuelven a pedir",
                  len(skip), settings.no_data_ttl_days)
         tickers = [t for t in tickers if t not in skip]
     log.info("Descargando precios de %d tickers (%s a %s) en lotes de %d...",
              len(tickers), start, end, settings.batch_size)
-    conn.execute("DELETE FROM prices")
-    conn.commit()
+    store.clear(conn)
     gone: set[str] = set()
     long, sin_datos = fetch_prices(tickers, start, end, settings.batch_size, gone=gone)
-    _save_prices(conn, long)
-    remember_no_data(conn, gone, long)
+    store.save(conn, long)
+    store.remember_no_data(conn, gone, list(long["ticker"].unique()))
     set_meta(conn, "prices_fetched", date.today().isoformat())
     set_meta(conn, "prices_start", start)
     set_meta(conn, "prices_end", end)
@@ -132,10 +110,10 @@ def update_prices(conn: sqlite3.Connection, tickers: list[str], start: str, end:
       no es comparable con el nuevo y solo ese ticker se vuelve a bajar completo.
     - Tickers que dejaron de cotizar (último dato de hace más de stale_days) no se vuelven a pedir.
     """
-    last = dict(conn.execute("SELECT ticker, MAX(date) FROM prices GROUP BY ticker").fetchall())
+    last = store.last_dates(conn)
     newest = pd.to_datetime(max(last.values()))
     stale_before = (newest - pd.Timedelta(days=settings.stale_days)).strftime("%Y-%m-%d")
-    skip = known_no_data(conn, settings.no_data_ttl_days)
+    skip = store.known_no_data(conn, settings.no_data_ttl_days)
     new = [t for t in tickers if t not in last and t not in skip]
     active = [t for t in tickers if t in last and last[t] >= stale_before]
     log.info("Actualización incremental de precios: %d tickers nuevos, %d a actualizar, %d sin cotizar",
@@ -146,7 +124,7 @@ def update_prices(conn: sqlite3.Connection, tickers: list[str], start: str, end:
         since = (pd.to_datetime(min(last[t] for t in active))
                  - pd.Timedelta(days=settings.price_overlap_days)).strftime("%Y-%m-%d")
         fresh, _ = fetch_prices(active, since, end, settings.batch_size)
-        stored = pd.read_sql("SELECT ticker, date, close AS old FROM prices WHERE date >= ?", conn, params=(since,))
+        stored = store.stored_since(conn, since)
         both = fresh.merge(stored, on=["ticker", "date"])
         drift = (both["close"] / both["old"] - 1).abs().groupby(both["ticker"]).max()
         changed = sorted(drift[drift > settings.price_drift_tolerance].index)
@@ -155,13 +133,13 @@ def update_prices(conn: sqlite3.Connection, tickers: list[str], start: str, end:
         log.info("Precios: %d tickers cambiaron su ajuste (dividendo/split) y se vuelven a bajar completos; "
                  "%d sin solape", len(changed), len(no_overlap))
         log.debug("Ajuste cambiado: %s | sin solape: %s", changed, no_overlap)
-        _save_prices(conn, fresh[~fresh["ticker"].isin(changed + no_overlap)])
+        store.save(conn, fresh[~fresh["ticker"].isin(changed + no_overlap)])
     if refetch:
         gone: set[str] = set()
         long, sin_datos = fetch_prices(refetch, start, end, settings.batch_size, gone=gone)
-        conn.executemany("DELETE FROM prices WHERE ticker = ?", [(t,) for t in refetch])
-        _save_prices(conn, long)
-        remember_no_data(conn, gone, long)
+        store.delete_tickers(conn, refetch)
+        store.save(conn, long)
+        store.remember_no_data(conn, gone, list(long["ticker"].unique()))
         log.debug("Tickers sin datos (delisted/renombrados): %s", sorted(sin_datos))
     set_meta(conn, "prices_fetched", date.today().isoformat())
     set_meta(conn, "prices_end", end)
@@ -172,7 +150,7 @@ def ensure_prices(conn: sqlite3.Connection, tickers: list[str], start: str, end:
                   settings: DataConfig) -> None:
     """Deja en SQLite los precios de `tickers` desde `start`: caché del día, actualización o descarga completa."""
     cached_start = get_meta(conn, "prices_start")
-    has_data = conn.execute("SELECT 1 FROM prices LIMIT 1").fetchone() is not None
+    has_data = store.exists(conn)
     if not use_cache:
         return download_prices(conn, tickers, start, end, settings)
     if fetched_today(conn, "prices_fetched") and cached_start and cached_start <= start:
@@ -189,8 +167,7 @@ def ensure_prices(conn: sqlite3.Connection, tickers: list[str], start: str, end:
 
 def load_prices(conn: sqlite3.Connection) -> pd.DataFrame:
     """Todos los precios guardados como matriz (índice = fecha, columnas = ticker)."""
-    df = pd.read_sql("SELECT date, ticker, close FROM prices", conn, parse_dates=["date"])
-    prices = df.pivot(index="date", columns="ticker", values="close").sort_index()
+    prices = store.matrix(conn)
     log.info("Precios cargados desde SQLite: shape=%s (%s a %s)", prices.shape,
              prices.index.min().date() if len(prices) else None,
              prices.index.max().date() if len(prices) else None)

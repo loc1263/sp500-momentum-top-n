@@ -5,6 +5,7 @@ import pytest
 
 from top3 import prices as prices_module
 from top3.db import fetched_today, get_meta, set_meta
+from top3.repo import prices as store
 from top3.prices import ensure_prices, load_prices
 
 
@@ -36,7 +37,7 @@ def stored(conn):
 
 
 def seed(conn, rows, start="2024-01-01", fetched=None):
-    prices_module._save_prices(conn, long(rows))
+    store.save(conn, long(rows))
     set_meta(conn, "prices_start", start)
     set_meta(conn, "prices_fetched", fetched or (date.today() - timedelta(days=1)).isoformat())
     conn.commit()
@@ -203,13 +204,13 @@ def test_fetch_prices_reports_tickers_yahoo_says_are_gone_but_not_rate_limited_o
 def test_known_no_data_respects_the_ttl(conn):
     _set_checked(conn, "FRESH", 5)
     _set_checked(conn, "STALE", 40)
-    assert prices_module.known_no_data(conn, 30) == {"FRESH"}
-    assert prices_module.known_no_data(conn, 0) == set()      # 0 = pedir siempre
+    assert store.known_no_data(conn, 30) == {"FRESH"}
+    assert store.known_no_data(conn, 0) == set()      # 0 = pedir siempre
 
 
 def test_remember_no_data_adds_gone_tickers_and_forgets_those_with_data_again(conn):
     _set_checked(conn, "BACK", 40)
-    prices_module.remember_no_data(conn, {"OLD"}, long([("BACK", "2024-01-02", 1.0)]))
+    store.remember_no_data(conn, {"OLD"}, ["BACK"])
     assert {r[0] for r in conn.execute("SELECT ticker FROM no_data_tickers")} == {"OLD"}
 
 
@@ -225,7 +226,7 @@ def test_full_download_skips_known_gone_tickers_and_records_new_ones(conn, setti
     monkeypatch.setattr(prices_module, "fetch_prices", fake)
     prices_module.download_prices(conn, ["AAA", "OLD1", "OLD2"], "2024-01-01", "2024-02-01", settings)
     assert asked == [["AAA", "OLD2"]]                         # OLD1 ya se sabía: no se pide
-    assert prices_module.known_no_data(conn, 30) == {"OLD1", "OLD2"}
+    assert store.known_no_data(conn, 30) == {"OLD1", "OLD2"}
 
 
 def test_incremental_update_does_not_ask_again_for_known_gone_new_tickers(conn, fetch, settings):
@@ -243,4 +244,4 @@ def test_a_known_gone_ticker_is_asked_again_after_the_ttl(conn, fetch, settings)
     ensure_prices(conn, ["A", "OLD"], "2024-01-02", "2024-03-06", True, settings)
     assert any("OLD" in tickers for tickers, _, _ in fetch.calls)
     assert ("OLD", "2024-03-05") in stored(conn)
-    assert prices_module.known_no_data(conn, 30) == set()    # y como ahora tiene datos, se olvida
+    assert store.known_no_data(conn, 30) == set()    # y como ahora tiene datos, se olvida

@@ -1,9 +1,7 @@
 """Corridas del backtest por plazo y por calendario de arranque, y su resumen estadístico."""
-import json
 import sqlite3
 import statistics
 from dataclasses import asdict, dataclass, field
-from datetime import datetime
 
 import pandas as pd
 
@@ -12,8 +10,9 @@ from .config import Config, DataConfig
 from .constituents import Constituents
 from .engine import BacktestResult, Skipped, report_skipped, run_backtest
 from .logs import log
-from .shares import add_market_caps, ensure_shares
 from .pricematrix import PriceMatrix
+from .repo.runs import save_run
+from .shares import add_market_caps, ensure_shares
 from .universe import Universe, label
 
 
@@ -94,27 +93,6 @@ class Term:
         """(mediana, mínimo, máximo) del capital final entre los calendarios."""
         finals = [c.final_capital for c in self.calendars]
         return statistics.median(finals), min(finals), max(finals)
-
-
-def save_run(conn: sqlite3.Connection, params: dict, start_date: str, end_date: str,
-             result: BacktestResult) -> int:
-    """Guarda una corrida (resumen, selecciones y curva de capital) y devuelve su id."""
-    cur = conn.execute(
-        "INSERT INTO runs (run_at, params, start_date, end_date, final_capital, total_return, cagr) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (datetime.now().isoformat(timespec="seconds"), json.dumps(params, default=str),
-         start_date, end_date, result.final_capital, result.total_return_pct, result.cagr_pct))
-    run_id = cur.lastrowid
-    conn.executemany(
-        "INSERT INTO selections (run_id, rebalance_date, rank, ticker, return_lookback) VALUES (?, ?, ?, ?, ?)",
-        [(run_id, h["date"], rank, t, r)
-         for h in result.history for rank, (t, r) in enumerate(h["returns"].items(), 1)])
-    conn.executemany(
-        "INSERT INTO equity (run_id, date, capital) VALUES (?, ?, ?)",
-        [(run_id, d.strftime("%Y-%m-%d"), float(c)) for d, c in result.equity_curve.items()])
-    conn.commit()
-    log.info("Resultados guardados en SQLite (runs.id=%d)", run_id)
-    return run_id
 
 
 def _where(ctx: Context, universe: Universe | None) -> str:

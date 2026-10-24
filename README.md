@@ -539,6 +539,7 @@ Para buscar en el log: `grep TOP-BKT backend/log/top3_backtest.log`.
 | `TOP-DAT-004` | Error | No hay lista actual del S&P 500 | No se descargó ni existe en SQLite. Corre con conexión a internet. |
 | `TOP-DAT-005` | Aviso | Sin datos financieros para algunos tickers | Quedan fuera del score de salud y del ranking final; suele ser un límite de Yahoo o un ticker nuevo. Vuelve a correr más tarde. |
 | `TOP-DAT-006` | Aviso | Sin precios de apertura, máximo, mínimo o volumen para algunos tickers | Quedan fuera del score técnico y del ranking final; suele ser un límite de Yahoo o un ticker nuevo. Vuelve a correr más tarde. |
+| `TOP-DAT-007` | Error | La base SQLite es de una versión más nueva del programa | Actualiza el código (git pull) o usa otra base en [data] db_path; no se modifica la base. |
 | `TOP-BKT-001` | Error | El backtest no generó ningún rebalanceo | Revisa las fechas, el histórico descargado y que el universo no sea demasiado chico. |
 | `TOP-BKT-002` | Aviso | Sin constituyentes en la fecha de rebalanceo | Se omite ese rebalanceo. |
 | `TOP-BKT-003` | Aviso | Pocos tickers disponibles en la fecha de rebalanceo | Se omiten esos rebalanceos (menos de 10 candidatos); se avisa una vez por universo y período con el rango de fechas. Frecuente en mega-cap con períodos largos. |

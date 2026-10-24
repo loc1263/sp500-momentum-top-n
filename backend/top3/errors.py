@@ -70,6 +70,8 @@ DAT_NO_OHLCV = _code("TOP-DAT-006", "warning", "Sin precios de apertura, máximo
 DAT_NO_FUNDAMENTALS = _code("TOP-DAT-005", "warning", "Sin datos financieros para algunos tickers",
                             "Quedan fuera del score de salud y del ranking final; suele ser un límite de Yahoo o un ticker "
                             "nuevo. Vuelve a correr más tarde.")
+DAT_DB_NEWER = _code("TOP-DAT-007", "error", "La base SQLite es de una versión más nueva del programa",
+                     "Actualiza el código (git pull) o usa otra base en [data] db_path; no se modifica la base.")
 
 # Backtest
 BKT_EMPTY = _code("TOP-BKT-001", "error", "El backtest no generó ningún rebalanceo",

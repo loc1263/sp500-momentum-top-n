@@ -27,6 +27,7 @@ import yfinance as yf
 
 from .. import errors as E
 from ..logs import log
+from ..repo import cache as store
 
 FIELDS = ["shortName", "sector", "marketCap", "returnOnEquity", "returnOnAssets", "profitMargins", "operatingMargins",
           "debtToEquity", "currentRatio", "quickRatio", "freeCashflow", "operatingCashflow", "totalRevenue",
@@ -74,8 +75,7 @@ def ensure_fundamentals(conn: sqlite3.Connection, tickers: list[str], use_cache:
     """Datos financieros de `tickers`. Los guardados hace menos de `ttl_days` días se reutilizan (cambian por trimestre);
     con --no-cache se vuelven a pedir todos."""
     cutoff = (date.today() - timedelta(days=ttl_days)).isoformat()
-    cached = {t: d for t, d in ((t, json.loads(d)) for t, d in
-                                conn.execute("SELECT ticker, data FROM fundamentals WHERE fetched >= ?", (cutoff,)))
+    cached = {t: d for t, d in ((t, json.loads(d)) for t, d in store.fresh_fundamentals(conn, cutoff))
               if d.get("v") == VERSION}
     data = {t: cached[t] for t in tickers if use_cache and t in cached}
     todo = [t for t in tickers if t not in data]
@@ -87,8 +87,7 @@ def ensure_fundamentals(conn: sqlite3.Connection, tickers: list[str], use_cache:
                 missing.append(ticker)
                 continue
             data[ticker] = fetched
-            conn.execute("INSERT OR REPLACE INTO fundamentals (ticker, fetched, data) VALUES (?, ?, ?)",
-                         (ticker, date.today().isoformat(), json.dumps(fetched)))
+            store.save_fundamentals(conn, ticker, date.today().isoformat(), json.dumps(fetched))
     conn.commit()
     if missing:
         log.warning(E.DAT_NO_FUNDAMENTALS.msg("Sin datos financieros para %d tickers (quedan fuera del score final)"),

@@ -1,6 +1,7 @@
 from datetime import date
 
 from top3 import rotation
+from top3.repo import picks as picks_store
 
 
 def add(conn, as_of, tickers, months=4, cap=None):
@@ -14,14 +15,14 @@ def test_previous_picks_is_the_latest_before_as_of(conn):
     add(conn, "2024-01-01", ["A", "B"])
     add(conn, "2024-02-01", ["B", "C"])
     add(conn, "2024-03-01", ["C", "D"])
-    assert rotation.previous_picks(conn, "2024-03-01", 4, None) == ("2024-02-01", ["B", "C"])
+    assert picks_store.previous_picks(conn, "2024-03-01", 4, None) == ("2024-02-01", ["B", "C"])
 
 
 def test_previous_picks_ignores_other_universe_and_term(conn):
     add(conn, "2024-01-01", ["A"], cap=200.0)
     add(conn, "2024-01-01", ["B"], months=6)
-    assert rotation.previous_picks(conn, "2024-02-01", 4, None) == (None, [])
-    assert rotation.previous_picks(conn, "2024-02-01", 4, 200.0) == ("2024-01-01", ["A"])
+    assert picks_store.previous_picks(conn, "2024-02-01", 4, None) == (None, [])
+    assert picks_store.previous_picks(conn, "2024-02-01", 4, 200.0) == ("2024-01-01", ["A"])
 
 
 def test_diff_picks():
@@ -32,8 +33,8 @@ def test_diff_picks():
 def test_anchor_date_is_the_first_run(conn):
     add(conn, "2024-02-15", ["A"])
     add(conn, "2024-01-10", ["A"])
-    assert rotation.anchor_date(conn, 4, None) == "2024-01-10"
-    assert rotation.anchor_date(conn, 6, None) is None
+    assert picks_store.anchor_date(conn, 4, None) == "2024-01-10"
+    assert picks_store.anchor_date(conn, 6, None) is None
 
 
 def test_next_rebalance_steps_from_the_anchor_month():

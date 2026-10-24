@@ -4,7 +4,8 @@ import argparse
 
 from top3.config import load_config
 from top3.console import configure_console
-from top3.db import maybe_prune_runs, open_db
+from top3.db import open_db
+from top3.repo.runs import maybe_prune_runs
 from top3.logs import log_config, run_cli, setup_logging
 
 

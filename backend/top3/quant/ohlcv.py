@@ -13,6 +13,7 @@ import yfinance as yf
 from .. import errors as E, yahoo
 from ..db import fetched_today, set_meta
 from ..logs import log
+from ..repo import prices as store
 
 FIELDS = ["Open", "High", "Low", "Close", "Volume"]
 HISTORY_DAYS = 460          # ~ 315 ruedas: alcanza para la EMA de 200 y el máximo de 52 semanas
@@ -75,8 +76,7 @@ def ensure_ohlcv(conn: sqlite3.Connection, tickers: list[str], use_cache: bool, 
     if not rows:
         log.warning(E.DAT_NO_OHLCV.msg("No se pudo descargar ningún OHLCV; se usa lo guardado"))
         return
-    conn.execute("DELETE FROM ohlcv")
-    conn.executemany("INSERT OR REPLACE INTO ohlcv VALUES (?, ?, ?, ?, ?, ?, ?)", rows)
+    store.replace_ohlcv(conn, rows)
     set_meta(conn, "ohlcv_fetched", today.isoformat())
     conn.commit()
     if missing:
@@ -87,6 +87,6 @@ def ensure_ohlcv(conn: sqlite3.Connection, tickers: list[str], use_cache: bool, 
 
 def load_ohlcv(conn: sqlite3.Connection) -> dict[str, pd.DataFrame]:
     """Campos como matrices fecha x ticker: open, high, low, close, volume."""
-    df = pd.read_sql("SELECT * FROM ohlcv", conn, parse_dates=["date"])
+    df = store.ohlcv_frame(conn)
     return {f: df.pivot(index="date", columns="ticker", values=f).sort_index()
             for f in ("open", "high", "low", "close", "volume")}

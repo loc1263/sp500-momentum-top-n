@@ -8,23 +8,21 @@ from pathlib import Path
 
 from . import rotation
 from .config import Config
-from .db import open_db, run_key
+from .db import open_db
 from .logs import log
+from .repo import etf as etf_store, picks as picks_store, prices as prices_store, quant as quant_store, runs as runs_store
 from .universe import label
 
 
 def _latest_runs(conn: sqlite3.Connection) -> tuple[str | None, dict]:
     """Última corrida (por id) de cada (min_cap, años, plazo, desfase) entre las de la fecha más reciente."""
-    last_day = conn.execute("SELECT MAX(substr(run_at, 1, 10)) FROM runs").fetchone()[0]
+    last_day = runs_store.latest_day(conn)
     if not last_day:
         return None, {}
-    rows = conn.execute(
-        "SELECT id, params, start_date, end_date, final_capital, total_return, cagr "
-        "FROM runs WHERE substr(run_at, 1, 10) = ? ORDER BY id", (last_day,)).fetchall()
     latest = {}
-    for row in rows:
-        params = json.loads(row[1])
-        key = run_key(params)
+    for row in runs_store.runs_of_day(conn, last_day):
+        params = json.loads(row.params)
+        key = runs_store.run_key(params)
         if key is not None:
             latest[key] = row
     return last_day, latest
@@ -32,13 +30,10 @@ def _latest_runs(conn: sqlite3.Connection) -> tuple[str | None, dict]:
 
 def _run_detail(conn: sqlite3.Connection, run_id: int, initial_capital: float) -> tuple[list[dict], list[dict]]:
     """Curva de capital y selecciones (con el capital al entrar y la ganancia acumulada) de una corrida."""
-    equity = [{"date": d, "capital": c} for d, c in
-              conn.execute("SELECT date, capital FROM equity WHERE run_id = ? ORDER BY date", (run_id,))]
+    equity = [{"date": d, "capital": c} for d, c in runs_store.equity_curve(conn, run_id)]
     cap_by_date = {e["date"]: e["capital"] for e in equity}
     picks_by_date: dict[str, list[dict]] = {}
-    for d, rank, ticker, ret in conn.execute(
-            "SELECT rebalance_date, rank, ticker, return_lookback FROM selections WHERE run_id = ? "
-            "ORDER BY rebalance_date, rank", (run_id,)):
+    for d, rank, ticker, ret in runs_store.selections(conn, run_id):
         picks_by_date.setdefault(d, []).append({"rank": rank, "ticker": ticker, "return": ret})
     history = [{"date": d, "picks": picks, "capital": cap_by_date.get(d),
                 "gain": (cap_by_date[d] / initial_capital - 1) if d in cap_by_date else None}
@@ -90,7 +85,7 @@ def _backtest(conn: sqlite3.Connection, latest: dict, initial_capital: float, sk
     for (cap, years, months, offset, skip), row in sorted(latest.items()):
         if skip != skip_months:
             continue
-        run_id, _, start, end, final, total, cagr = row
+        run_id, _, start, end, final, total, cagr = row  # RunRow
         equity, history = _run_detail(conn, run_id, initial_capital)
         calendar = {"offset": offset, "start_date": start, "end_date": end, "final_capital": final,
                     "total_return": total / 100, "cagr": cagr / 100, "rebalances": len(history),
@@ -118,18 +113,11 @@ def _tracking(conn: sqlite3.Connection, cap: float, months: int) -> list[dict]:
 
     Se mide con el precio guardado al elegirla y el último precio disponible, sin pasar de los `months` meses que
     dura la tenencia: si ya pasaron, la selección figura como cerrada y su retorno es el del plazo completo."""
-    last = conn.execute("SELECT MAX(date) FROM prices").fetchone()[0]
+    last = prices_store.latest_date(conn)
     if not last:
         return []
     last_day = date.fromisoformat(last)
-    rows = conn.execute(
-        "SELECT as_of, ticker, price FROM actual_picks WHERE COALESCE(min_cap_billions, 0) = ? AND months = ? "
-        "AND run_at = (SELECT MAX(run_at) FROM actual_picks p WHERE p.as_of = actual_picks.as_of "
-        "AND COALESCE(p.min_cap_billions, 0) = ? AND p.months = ?) ORDER BY as_of, rank",
-        (cap, months, cap, months)).fetchall()
-    by_date: dict[str, list[tuple[str, float]]] = {}
-    for as_of, ticker, price in rows:
-        by_date.setdefault(as_of, []).append((ticker, price))
+    by_date = picks_store.latest_picks_by_date(conn, cap, months)
     out = []
     for as_of, picks in sorted(by_date.items(), reverse=True):
         bought = date.fromisoformat(as_of)
@@ -144,10 +132,9 @@ def _tracking(conn: sqlite3.Connection, cap: float, months: int) -> list[dict]:
             continue
         returns = []
         for ticker, price in picks:
-            row = conn.execute("SELECT close FROM prices WHERE ticker = ? AND date <= ? ORDER BY date DESC LIMIT 1",
-                               (ticker, end.isoformat())).fetchone()
-            if row and price:
-                returns.append({"ticker": ticker, "price": price, "now": row[0], "return": row[0] / price - 1})
+            now = prices_store.close_on_or_before(conn, ticker, end.isoformat())
+            if now is not None and price:
+                returns.append({"ticker": ticker, "price": price, "now": now, "return": now / price - 1})
         if returns:
             out.append({"as_of": as_of, "until": end.isoformat(), "days": (end - bought).days,
                         "closed": term_end <= last_day, "picks": returns,
@@ -157,23 +144,18 @@ def _tracking(conn: sqlite3.Connection, cap: float, months: int) -> list[dict]:
 
 def _actual(conn: sqlite3.Connection, today: date | None = None) -> list[dict]:
     """Último Top actual de cada (universo, plazo) entre los de la fecha más reciente."""
-    last_run_at = conn.execute("SELECT MAX(run_at) FROM actual_picks").fetchone()[0]
+    last_run_at = picks_store.latest_run_at(conn)
     if not last_run_at:
         return []
-    rows = conn.execute(
-        "SELECT run_at, as_of, months, COALESCE(min_cap_billions, 0), rank, ticker, return_lookback, price, "
-        "market_cap FROM actual_picks WHERE substr(run_at, 1, 10) = ? ORDER BY run_at, rank",
-        (last_run_at[:10],)).fetchall()
+    rows = picks_store.runs_of_day(conn, last_run_at[:10])
     latest = {(r[3], r[2]): r[0] for r in rows}  # (universo, plazo) -> run_at de la última corrida
     out = []
     for (cap, months), run_at in sorted(latest.items()):
         mine = [r for r in rows if r[0] == run_at and r[3] == cap and r[2] == months]
         cap_b = cap or None
-        prev_as_of, prev = rotation.previous_picks(conn, mine[0][1], months, cap_b)
-        anchor = rotation.anchor_date(conn, months, cap_b)
-        alts = conn.execute(
-            "SELECT rank, ticker, return_lookback, price, market_cap FROM actual_alternates WHERE run_at = ? "
-            "AND COALESCE(min_cap_billions, 0) = ? AND months = ? ORDER BY rank", (run_at, cap, months)).fetchall()
+        prev_as_of, prev = picks_store.previous_picks(conn, mine[0][1], months, cap_b)
+        anchor = picks_store.anchor_date(conn, months, cap_b)
+        alts = picks_store.alternates(conn, run_at, months, cap)
         out.append({"min_cap_billions": cap or None, "label": label(cap), "months": months,
                     "as_of": mine[0][1], "run_at": run_at,
                     "previous_as_of": prev_as_of,
@@ -182,15 +164,15 @@ def _actual(conn: sqlite3.Connection, today: date | None = None) -> list[dict]:
                     "next_rebalance": rotation.next_rebalance(anchor, months, today or date.today()).isoformat(),
                     "picks": [{"rank": r[4], "ticker": r[5], "return": r[6], "price": r[7], "market_cap": r[8]}
                               for r in mine],
-                    "alternates": [{"rank": r[0], "ticker": r[1], "return": r[2], "price": r[3], "market_cap": r[4]}
-                                   for r in alts],
+                    "alternates": [{"rank": r.rank, "ticker": r.ticker, "return": r.return_lookback,
+                                    "price": r.price, "market_cap": r.market_cap} for r in alts],
                     "tracking": _tracking(conn, cap, months)})
     return out
 
 
 def _etf(conn: sqlite3.Connection, cfg: Config) -> dict | None:
     """Último ranking de ETFs de Vanguard guardado, con nombre y categoría de la lista (CSV)."""
-    as_of = conn.execute("SELECT MAX(as_of) FROM etf_scores").fetchone()[0]
+    as_of = etf_store.latest_as_of(conn)
     if not as_of:
         return None
     etf_cfg = cfg.etf
@@ -201,14 +183,12 @@ def _etf(conn: sqlite3.Connection, cfg: Config) -> dict | None:
     except OSError:
         info = {}
     rows = []
-    for rank, ticker, score, vol, max_dd, sma_dist, returns, run_at in conn.execute(
-            "SELECT rank, ticker, score, vol, max_dd, sma_dist, returns, run_at FROM etf_scores WHERE as_of = ? "
-            "ORDER BY rank", (as_of,)):
+    for rank, ticker, score, vol, max_dd, sma_dist, returns, run_at in etf_store.ranking(conn, as_of):
         meta = info.get(ticker, {})
         rows.append({"rank": rank, "ticker": ticker, "name": meta.get("name", "").strip(),
                      "category": meta.get("category", "").strip(), "score": score, "vol": vol, "max_dd": max_dd,
-                     "sma_dist": sma_dist, "returns": json.loads(returns)})
-    prev_as_of, prev = rotation.previous_etf_top(conn, as_of, top_n)
+                     "sma_dist": sma_dist, "returns": returns})
+    prev_as_of, prev = etf_store.previous_top(conn, as_of, top_n)
     risk_free = etf_cfg.risk_free_ticker.upper()
     return {"as_of": as_of, "run_at": run_at, "top_n": top_n, "horizons": sorted(int(h) for h in rows[0]["returns"]),
             "risk_free": risk_free if any(r["ticker"] == risk_free for r in rows) else None,
@@ -219,8 +199,7 @@ def _etf(conn: sqlite3.Connection, cfg: Config) -> dict | None:
 
 def _quant(conn: sqlite3.Connection) -> dict | None:
     """Último resultado guardado del modelo cuantitativo (ya es un JSON armado por top3.quant)."""
-    row = conn.execute("SELECT payload FROM quant_runs ORDER BY run_at DESC LIMIT 1").fetchone()
-    return json.loads(row[0]) if row else None
+    return quant_store.latest(conn)
 
 
 def build_report(conn: sqlite3.Connection, cfg: Config) -> dict:
