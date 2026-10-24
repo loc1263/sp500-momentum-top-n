@@ -139,7 +139,10 @@ pueden seguir en marcha.
    plazo. Las compras y el rendimiento siguen contándose desde la fecha de rebalanceo. Usa los mismos precios,
    universos, períodos y fechas de arranque que el modelo de siempre (N-0), que es el que se usa en el Top
    actual. En las corridas de prueba N-0 rindió más que N-1 con el plazo de 4 meses; N-1 solo ganó en plazos
-   cortos. El Top actual no calcula la variante N-1.
+   cortos. El Top actual no calcula la variante N-1. Para ver si una ventaja depende de un solo tramo del
+   mercado, la pestaña *N-0 vs N-1* parte cada período en dos mitades (por fecha) y muestra el CAGR mediano de
+   cada modelo en cada una, a partir de las curvas de capital ya guardadas (sin simulaciones nuevas): si un modelo
+   gana en las dos mitades, su ventaja se sostiene. Con períodos cortos cada mitad tiene muy pocos rebalanceos.
 7. **Caché.** Todo se guarda en SQLite. Si se vuelve a correr el mismo día se reutiliza lo descargado;
    `--no-cache` fuerza una descarga nueva, pero no repite dentro de la misma corrida lo que ya bajó (p. ej. las
    acciones en circulación), y `run_pipeline.py` lo aplica solo al primer paso que descarga: los siguientes leen de
@@ -273,6 +276,10 @@ Además del Top, muestra:
   guardada. Es una referencia: el backtest no tiene un ancla fija para el Top de hoy.
 - **Tickers excluidos:** los que tienen huecos de precios en la ventana no se pueden rankear (igual que en el
   backtest) y quedan listados como advertencia en la consola y en el log.
+- **Seguimiento de selecciones anteriores (solo en la web):** para cada selección guardada en `actual_picks`, el
+  retorno de ponderación igual entre el precio de cuando se eligió y el último precio disponible en la base,
+  sin pasar de los N meses que dura la tenencia. Pasado ese plazo figura como *cerrada*. Es una verificación fuera
+  del backtest, pero hace falta acumular selecciones (una por corrida con datos de un día nuevo) antes de que diga algo.
 
 Correr el script dos veces con los mismos datos reemplaza el resultado en lugar de duplicarlo.
 
@@ -285,18 +292,23 @@ retorno por unidad de riesgo.
 python top3_etf.py                       # ranking de hoy; muestra el top de [etf] top_n
 python top3_etf.py --top-n 30            # más filas en la consola (el HTML siempre trae todos)
 python top3_etf.py --as-of 2025-06-30    # ranking con los datos hasta esa fecha
-python top3_etf.py --csv otra_lista.csv  # otra lista de ETFs
+python top3_etf.py --csv otra_lista.csv  # otra lista de ETFs (esa lista no se actualiza sola)
+python top3_etf.py --no-update           # no agrega los ETFs nuevos de Vanguard a la lista
 python run_pipeline.py --skip-etf        # el pipeline lo incluye salvo que se omita
 ```
 
 **Score.** Para cada plazo de `[etf] horizons_months` (3, 6 y 12 meses por defecto):
 `(retorno del plazo - retorno de la referencia libre de riesgo) / (volatilidad anual x raíz(meses/12))`. El score es el
 promedio de esos cocientes. La referencia es `[etf] risk_free_ticker` (VUSB, bonos ultracortos): sin restarla, un ETF
-casi sin riesgo ganaría siempre. Además del score la tabla muestra el retorno de cada plazo, la volatilidad anual y la
+casi sin riesgo ganaría siempre. Los ETFs de tipo efectivo (volatilidad anual menor a `[etf] min_vol`, como VBIL, VGUS y la propia VUSB) no entran al ranking: con tan poco riesgo cualquier exceso mínimo sobre la referencia daría un score enorme sin ser una señal de momentum; se listan aparte en la consola y el HTML. Además del score la tabla muestra el retorno de cada plazo, la volatilidad anual y la
 caída máxima del plazo más largo, y la distancia del precio a su media de 200 ruedas (positivo = tendencia alcista).
 
-**La lista** está en `backend/vanguard_etfs.csv` (`ticker,name,category`) y se mantiene a mano: Vanguard lanza muy
-pocos ETFs al año. Un ticker sin precios en Yahoo avisa con `TOP-ETF-002`; los ETFs sin historia suficiente para el
+**La lista** está en `backend/vanguard_etfs.csv` (`ticker,name,category`). Cada vez que se corre el ranking se
+consulta el servicio que alimenta la página de productos de Vanguard y se **agregan al final del archivo los ETFs que
+falten** (con la categoría que se deduce del estilo que informa Vanguard); las filas que ya existen no se tocan, así
+que nombres y categorías se pueden corregir a mano, y nunca se borra ninguna. Si Vanguard ya no lista un ETF de la
+lista, se informa en el log para que se quite a mano. Si la consulta falla (sin red, formato distinto) se usa la lista
+guardada y se avisa con `TOP-ETF-006`. Es un servicio no documentado de la web de Vanguard, de uso personal. Un ticker sin precios en Yahoo avisa con `TOP-ETF-002`; los ETFs sin historia suficiente para el
 plazo más largo quedan fuera del ranking y se listan (`TOP-ETF-003`).
 
 **`--as-of`** usa la lista actual, así que no incluye los ETFs lanzados después de esa fecha ni los cerrados: sirve
@@ -341,9 +353,12 @@ incluido puede traer otros (por ejemplo más períodos y plazos en `[simulation]
 | | `backtest_prefix`, `sweep_prefix`, `offsets_prefix`, `actual_prefix`, `etf_prefix` | `top3_*` | Prefijos de los archivos HTML |
 | | `log_dir` | `"log"` | Carpeta de los logs |
 | | `backtest_log`, `actual_log`, `etf_log` | `top3_*.log` | Nombres de los archivos de log |
-| `[etf]` | `csv` | `"vanguard_etfs.csv"` | Lista de ETFs de Vanguard (columnas `ticker`, `name`, `category`) |
+| `[etf]` | `update_list` | `true` | Al correr el ranking de ETFs, agrega a la lista los ETFs nuevos que Vanguard publica (nunca borra ni edita filas) |
+| | `list_url` | página de productos de Vanguard | Servicio del que se baja la lista de ETFs de Vanguard |
+| | `csv` | `"vanguard_etfs.csv"` | Lista de ETFs de Vanguard (columnas `ticker`, `name`, `category`) |
 | | `horizons_months` | `[3, 6, 12]` | Plazos del retorno ajustado por riesgo; el score es el promedio de sus cocientes |
 | | `top_n` | `15` | Cuántos ETFs se muestran en la consola (el HTML trae todos) |
+| | `min_vol` | `0.01` | Volatilidad anual mínima para entrar al ranking (1%): los ETFs por debajo son de tipo efectivo (letras del Tesoro, bonos ultracortos) y quedan fuera; `0` = rankear todos |
 | | `risk_free_ticker` | `"VUSB"` | ETF cuyo retorno se resta al de cada ETF (referencia libre de riesgo); `""` = no restar |
 | `[simulation]` | `months` | `[3, 4, 6, 8, 12]` | Plazos que comparan `--sweep` y `--offsets` |
 
@@ -468,6 +483,7 @@ Para buscar en el log: `grep TOP-BKT backend/log/top3_backtest.log`.
 | `TOP-ETF-003` | Aviso | ETFs fuera del ranking por huecos de precios o poca historia | Los ETFs nuevos entran cuando acumulan historia para el plazo más largo. |
 | `TOP-ETF-004` | Error | Ningún ETF se pudo rankear | Descarga más historia o reduce [etf] horizons_months. |
 | `TOP-ETF-005` | Aviso | La referencia libre de riesgo no está disponible | El score se calcula sin restarla (los ETFs casi sin riesgo quedan arriba). Revisa [etf] risk_free_ticker: debe estar en la lista y tener historia completa. |
+| `TOP-ETF-006` | Aviso | No se pudo actualizar la lista de ETFs de Vanguard | Se usa la lista guardada en el CSV. Revisa la conexión; si Vanguard cambió el formato de su respuesta hay que ajustar `top3/vanguard.py`. Con `--no-update` o `[etf] update_list = false` no se intenta. |
 | `TOP-API-001` | Error | Error armando /api/report | Revisa que exista la base SQLite y que se haya corrido el pipeline al menos una vez. |
 | `TOP-SYS-001` | Aviso | Aviso de Python (pandas, yfinance u otra librería) | El mensaje original trae el archivo y la línea. |
 
@@ -510,6 +526,7 @@ frontend/             # Aplicación web en Svelte 5 + Vite
 | `tables.py` | Tablas de resultados (texto) que comparten la consola y el HTML |
 | `console.py`, `html_report.py` | Salida por consola y reportes HTML |
 | `etf.py` | Ranking de ETFs: lista, score ajustado por riesgo, guardado en `etf_scores` y reportes |
+| `vanguard.py` | Baja la lista de ETFs de Vanguard y agrega al CSV los que falten |
 | `rotation.py` | Top actual: cambios contra la corrida anterior y próximo rebalanceo |
 | `workflow.py`, `actual.py` | Flujos completos: backtest normal / sweep / offsets y Top actual |
 | `report_data.py`, `api.py` | JSON del frontend y API HTTP |
@@ -520,10 +537,10 @@ frontend/             # Aplicación web en Svelte 5 + Vite
 | Archivo | Responsabilidad |
 |---|---|
 | `App.svelte` | Carga de datos (API y luego JSON estático), pestañas, filtros de universo y período, tema |
-| `lib/ActualView.svelte` | Top actual y suplentes |
+| `lib/ActualView.svelte` | Top actual, suplentes y seguimiento de selecciones anteriores |
 | `lib/BacktestView.svelte` | Tarjetas, curva de capital, historial de selecciones y calendarios |
 | `lib/SweepView.svelte` | Comparación de plazos y sensibilidad al arranque |
-| `lib/CompareView.svelte` | Modelo de siempre (N-0) frente al skip-month (N-1), plazo por plazo |
+| `lib/CompareView.svelte` | Modelo de siempre (N-0) frente al skip-month (N-1), plazo por plazo y por mitades del período |
 | `lib/EtfView.svelte` | Ranking de ETFs de Vanguard |
 | `lib/Chart.svelte`, `Range.svelte`, `TickerLink.svelte`, `Glossary.svelte` | Componentes compartidos |
 | `lib/Bunny.svelte` | Detalle decorativo: un conejo que pasea por el pie de la pantalla, se aleja del cursor y saluda al hacer clic (se desactiva con «reducir movimiento» del sistema) |
