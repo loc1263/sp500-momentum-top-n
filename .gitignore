@@ -18,3 +18,6 @@ frontend/public/data/report.json
 .idea/
 .DS_Store
 Thumbs.db
+
+# Documentación local (no se sube a GitHub)
+docs/
