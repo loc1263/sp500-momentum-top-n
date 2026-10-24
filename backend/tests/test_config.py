@@ -221,7 +221,6 @@ def test_yfinance_errors_are_triaged_into_the_log(tmp_path, capsys, monkeypatch)
         logs.run_cli(main)
         for h in logs.log.handlers:
             h.flush()
-        text = (tmp_path / "s.log").read_text(encoding="utf-8") if (tmp_path / "s.log").exists() else ""
     finally:
         _close_logging()
     err = capsys.readouterr().err

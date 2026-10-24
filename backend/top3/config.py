@@ -57,7 +57,6 @@ DEFAULT_CONFIG: dict[str, dict] = {
         "etf_log": "top3_etf.log",
         "quant_log": "top3_quant.log",
         "export_log": "export_frontend.log",
-        "server_log": "server.log",
         "frontend_data": "../frontend/public/data/report.json",
     },
     "etf": {
@@ -80,11 +79,6 @@ DEFAULT_CONFIG: dict[str, dict] = {
         "equity_premium": 0.05,                # prima de mercado anual (retorno de largo plazo = tasa libre de riesgo + prima)
         "risk_free": 0.04,                     # tasa libre de riesgo anual (para el Sharpe)
         "fundamentals_ttl_days": 7,            # días que se reutilizan los datos financieros descargados
-    },
-    "server": {
-        "host": "127.0.0.1",
-        "port": 8000,
-        "cors_origin": "*",
     },
     "universe": {
         "min_cap_billions": 10,

@@ -1,7 +1,5 @@
 from datetime import date, timedelta
 
-import pandas as pd
-
 from top3 import shares as shares_module
 from top3.config import DataSettings
 

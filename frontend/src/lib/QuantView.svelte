@@ -1,6 +1,6 @@
 <script>
   import TickerLink from './TickerLink.svelte';
-  import { billions, pct, share, sign } from './format.js';
+  import { pct, share, sign } from './format.js';
 
   let { quant } = $props();
 

@@ -1,7 +1,7 @@
 """Catálogo de códigos de error y aviso (al estilo ORA-00942): cada mensaje del log y de las excepciones lleva su ID.
 
 Formato: TOP-<ÁREA>-<NNN>. Áreas: CFG configuración, NET descargas, DAT datos, BKT backtest, ACT Top actual,
-API servidor, SYS avisos de Python. Los IDs no se reutilizan ni se renumeran: documentarlos en docs/errores.md.
+SYS avisos de Python. Los IDs no se reutilizan ni se renumeran: documentarlos en docs/errores.md.
 """
 from dataclasses import dataclass
 
@@ -110,10 +110,6 @@ ETF_LIST_UPDATE = _code("TOP-ETF-006", "warning", "No se pudo actualizar la list
 # Modelo cuantitativo
 QNT_NO_SIGNAL = _code("TOP-QNT-001", "error", "No hay acciones suficientes para el ranking del modelo base",
                       "Descarga más historia (--no-cache) o baja [quant] top_n; revisa también TOP-DAT-005.")
-
-# Servidor
-API_REPORT = _code("TOP-API-001", "error", "Error armando /api/report",
-                   "Revisa que exista la base SQLite y que se haya corrido el pipeline al menos una vez.")
 
 # Sistema
 SYS_PYTHON_WARNING = _code("TOP-SYS-001", "warning", "Aviso de Python (pandas, yfinance u otra librería)",

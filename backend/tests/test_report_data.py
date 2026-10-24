@@ -1,14 +1,8 @@
 import json
-import threading
-import urllib.error
-import urllib.request
-from http.server import ThreadingHTTPServer
-
 import pandas as pd
 import pytest
 
 from top3.analysis import save_run
-from top3.api import ReportCache, make_handler
 from top3.engine import BacktestResult
 from top3.report_data import _actual, build_report, export_report
 
@@ -79,45 +73,6 @@ def test_export_report_writes_json(tmp_path, cfg):
     conn.close()
     path = export_report(cfg)
     assert json.loads(path.read_text(encoding="utf-8"))["backtest"][0]["periods"][0]["terms"][0]["months"] == 4
-
-
-def test_report_cache_rebuilds_only_when_results_change(tmp_path, cfg):
-    cfg = make_cfg(cfg, tmp_path)
-    from top3.db import open_db
-    conn = open_db(cfg["data"]["db_path"])
-    seed_run(conn, 4, 0)
-    cache = ReportCache(cfg)
-    first = cache.get()
-    assert cache.get() is first                      # sin cambios: la misma respuesta ya armada
-    seed_run(conn, 4, 1)
-    conn.close()
-    assert cache.get() is not first                  # una corrida nueva invalida la caché
-
-
-def test_api_endpoints(tmp_path, cfg):
-    cfg = make_cfg(cfg, tmp_path)
-    from top3.db import open_db
-    conn = open_db(cfg["data"]["db_path"])
-    seed_run(conn, 4, 0)
-    conn.close()
-
-    httpd = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(cfg))
-    threading.Thread(target=httpd.serve_forever, daemon=True).start()
-    base = f"http://127.0.0.1:{httpd.server_port}"
-    try:
-        with urllib.request.urlopen(base + "/api/health") as r:
-            assert json.load(r) == {"status": "ok"}
-        with urllib.request.urlopen(base + "/api/report") as r:
-            assert r.headers["Content-Type"].startswith("application/json")
-            assert json.load(r)["backtest"][0]["periods"][0]["terms"][0]["calendars"][0]["offset"] == 0
-        try:
-            urllib.request.urlopen(base + "/nada")
-            raise AssertionError("debería dar 404")
-        except urllib.error.HTTPError as e:
-            assert e.code == 404
-    finally:
-        httpd.shutdown()
-        httpd.server_close()
 
 
 def test_actual_includes_rotation(conn):

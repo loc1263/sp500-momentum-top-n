@@ -43,7 +43,6 @@ GROUPS = {
     "caja": [("fcf_margin", True), ("ocf_margin", True), ("fcf_yield", True), ("cash_conversion", True),
              ("ocf_to_debt", True), ("fcf_positive_years", True)],
 }
-GROUP_LABELS = {"rentabilidad": "Rentabilidad", "solvencia": "Solvencia", "liquidez": "Liquidez", "caja": "Caja"}
 NOT_FOR_FINANCIALS = {"debt_to_equity", "net_debt_ebitda", "cash_to_debt", "current_ratio", "quick_ratio", "fcf_margin",
                       "ocf_margin", "fcf_yield", "cash_conversion", "ocf_to_debt", "fcf_positive_years"}
 

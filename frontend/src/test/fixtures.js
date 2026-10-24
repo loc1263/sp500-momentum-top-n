@@ -1,4 +1,4 @@
-// Datos mínimos con la forma del JSON que sirve /api/report
+// Datos mínimos con la forma del JSON de data/report.json
 
 export const settings = { top_n: 2, months: 4, backtest_years: 5, initial_capital: 1000 };
 

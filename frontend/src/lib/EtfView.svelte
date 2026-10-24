@@ -45,12 +45,6 @@
   }
 
   const ariaSort = (column) => (sortKey === column.key ? (descending ? 'descending' : 'ascending') : 'none');
-  const cell = (row, key) => {
-    const v = value(row, key);
-    if (key === 'score') return v.toFixed(2);
-    if (key === 'vol') return share(v);
-    return pct(v);
-  };
 </script>
 
 <div class="cards">

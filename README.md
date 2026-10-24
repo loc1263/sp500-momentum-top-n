@@ -26,7 +26,7 @@ corrida anterior y el próximo rebalanceo) un **ranking de momentum de los ETFs 
 
 | Herramienta | Versión | Para qué |
 |---|---|---|
-| [Python](https://www.python.org/downloads/) | 3.11 o superior | Descarga de datos, cálculos y API |
+| [Python](https://www.python.org/downloads/) | 3.11 o superior | Descarga de datos y cálculos |
 | [Node.js](https://nodejs.org/) (incluye `npm`) | 20.19 o superior | Interfaz web |
 | Conexión a internet | | Descarga de precios y listas del índice |
 
@@ -189,8 +189,6 @@ La página no pide nada al backend: lee `data/report.json`, el archivo estático
 `run_pipeline.py`, `top3_backtest.py`, `top3_actual.py` y `top3_etf.py` (también `export_frontend.py` a mano). Primero
 hay que haber corrido el pipeline al menos una vez. `npm run build` en `frontend/` genera la versión estática en
 `frontend/dist/`, que se puede publicar en cualquier hosting estático con el JSON de ese momento.
-
-`backend/server.py` sigue disponible como API opcional (`GET /api/report`), pero la web no la usa.
 
 ### Pipeline completo
 
@@ -406,7 +404,6 @@ incluido puede traer otros (por ejemplo más períodos y plazos en `[simulation]
 | `[tickers.aliases]` | `VIEJO = "NUEVO"` | 6 renombres | Unifica símbolos renombrados |
 | `[universe]` | `min_cap_billions` | `10` | Umbral de `--large-cap` (miles de millones de US$) |
 | | `sweep_min_cap_billions` | `[0, 10, 200]` | Universos que corre `--sweep` por defecto (0 = índice completo) |
-| `[server]` | `host`, `port`, `cors_origin` | `127.0.0.1`, `8000`, `*` | API HTTP de `server.py` |
 | `[output]` | `dir` | `"output"` | Carpeta de los reportes HTML |
 | | `frontend_data` | `"../frontend/public/data/report.json"` | JSON estático para el frontend |
 | | `backtest_subdir`, `actual_subdir`, `etf_subdir` | `"backtest"`, `"actual"`, `"etf"` | Subcarpetas dentro de `dir` |
@@ -517,7 +514,6 @@ Formato: `TOP-<ÁREA>-<NNN>`.
 | `ACT` | Top actual |
 | `ETF` | Ranking de ETFs de Vanguard |
 | `QNT` | Modelo base |
-| `API` | Servidor HTTP (también viaja como `code` en la respuesta 500 de `/api/report`) |
 | `SYS` | Avisos de Python capturados (pandas, yfinance...) |
 
 **Aviso** = se continúa con lo que haya. **Error** = la operación se corta o falla.
@@ -556,7 +552,6 @@ Para buscar en el log: `grep TOP-BKT backend/log/top3_backtest.log`.
 | `TOP-ETF-004` | Error | Ningún ETF se pudo rankear | Descarga más historia o reduce [etf] horizons_months. |
 | `TOP-ETF-005` | Aviso | La referencia libre de riesgo no está disponible | El score se calcula sin restarla (los ETFs casi sin riesgo quedan arriba). Revisa [etf] risk_free_ticker: debe estar en la lista y tener historia completa. |
 | `TOP-ETF-006` | Aviso | No se pudo actualizar la lista de ETFs de Vanguard | Se usa la lista guardada en el CSV. Revisa la conexión; si Vanguard cambió el formato de su respuesta hay que ajustar `top3/vanguard.py`. Con `--no-update` o `[etf] update_list = false` no se intenta. |
-| `TOP-API-001` | Error | Error armando /api/report | Revisa que exista la base SQLite y que se haya corrido el pipeline al menos una vez. |
 | `TOP-QNT-001` | Error | No hay acciones suficientes para el ranking del modelo base | Descarga más historia (`--no-cache`) o baja `[quant] top_n`; revisa también `TOP-DAT-005`. |
 | `TOP-SYS-001` | Aviso | Aviso de Python (pandas, yfinance u otra librería) | El mensaje original trae el archivo y la línea. |
 
@@ -564,7 +559,7 @@ Para buscar en el log: `grep TOP-BKT backend/log/top3_backtest.log`.
 
 ```
 start.ps1 / start.sh  # levantan backend + frontend (Windows / macOS y Linux)
-backend/              # Python: backtest, Top actual, ranking de ETFs, modelo base, base SQLite y API HTTP
+backend/              # Python: backtest, Top actual, ranking de ETFs, modelo base y base SQLite
   config.toml         # configuración
   vanguard_etfs.csv   # lista de ETFs de Vanguard (se mantiene a mano)
   top3/               # paquete con la lógica; los scripts de la raíz de backend/ son solo la línea de comandos
@@ -579,7 +574,6 @@ frontend/             # Aplicación web en Svelte 5 + Vite
 | `backend/top3_etf.py` | Ranking de momentum ajustado por riesgo de los ETFs de Vanguard (sin backtest) |
 | `backend/top3_quant.py` | Modelo base: scores de momentum, de salud financiera y técnico del S&P 500 y Markowitz sobre las mejores (sin backtest) |
 | `backend/run_pipeline.py` | Pipeline completo: backtest (todos los períodos y universos) + Top actual de cada universo + ETFs + modelo base + JSON del frontend |
-| `backend/server.py` | API HTTP opcional: `GET /api/report` (el mismo JSON, leído de SQLite). La web no la usa |
 | `backend/prune_db.py` | Limpia a mano las corridas viejas de SQLite (se hace sola en cada backtest) |
 | `backend/export_frontend.py` | Escribe ese mismo JSON en `frontend/public/data/report.json` (lo hacen solos los scripts al terminar) |
 | `backend/data/`, `backend/output/`, `backend/log/` | Base SQLite, reportes HTML y logs; se crean solos |
@@ -603,7 +597,7 @@ frontend/             # Aplicación web en Svelte 5 + Vite
 | `vanguard.py` | Baja la lista de ETFs de Vanguard y agrega al CSV los que falten |
 | `rotation.py` | Top actual: cambios contra la corrida anterior y próximo rebalanceo |
 | `workflow.py`, `actual.py` | Flujos completos: backtest normal / sweep / offsets y Top actual |
-| `report_data.py`, `api.py` | JSON del frontend y API HTTP |
+| `report_data.py` | JSON del frontend |
 | `quant/` | Modelo base: `momentum.py` (momentum 12-1 y 6-1 y su score), `fundamentals.py` (datos financieros de Yahoo y score de salud), `ohlcv.py` (precios y volumen diarios) y `technical.py` (indicadores y score técnico), `markowitz.py` (covarianza, retornos esperados y carteras) y `run.py` (orquestación y guardado) |
 | `errors.py` | Catálogo de códigos de error y aviso |
 
@@ -611,7 +605,7 @@ frontend/             # Aplicación web en Svelte 5 + Vite
 
 | Archivo | Responsabilidad |
 |---|---|
-| `App.svelte` | Carga de datos (API y luego JSON estático), pestañas, filtros de universo y período, tema |
+| `App.svelte` | Carga del JSON estático, pestañas, filtros de universo y período, tema |
 | `lib/ActualView.svelte` | Top actual, suplentes y seguimiento de selecciones anteriores |
 | `lib/BacktestView.svelte` | Tarjetas, curva de capital, historial de selecciones y calendarios |
 | `lib/SweepView.svelte` | Comparación de plazos y sensibilidad al arranque |

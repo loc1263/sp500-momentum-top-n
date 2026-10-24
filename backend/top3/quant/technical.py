@@ -18,7 +18,6 @@ import pandas as pd
 
 DAY_YEAR = 252
 GROUPS = ["tendencia", "impulso", "volumen", "posicion"]
-GROUP_LABELS = {"tendencia": "Tendencia", "impulso": "Impulso", "volumen": "Volumen", "posicion": "Posición"}
 
 
 def ema(x: pd.DataFrame, span: int) -> pd.DataFrame:

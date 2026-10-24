@@ -85,16 +85,8 @@ log_dir = "log"
 backtest_log = "top3_backtest.log"
 actual_log = "top3_actual.log"
 export_log = "export_frontend.log"
-server_log = "server.log"
 # JSON que lee el frontend (resultados del día: Top actual y backtest)
 frontend_data = "../frontend/public/data/report.json"
-
-[server]
-# Servidor HTTP del backend (server.py): GET /api/report con los resultados guardados en SQLite
-host = "127.0.0.1"
-port = 8000
-# Valor del header Access-Control-Allow-Origin
-cors_origin = "*"
 
 [simulation]
 # Plazos (en meses) a comparar con --sweep. Cada plazo N usa un ranking de N meses
